@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import sys
+
+from agent_harness.scenario import ScenarioValidationError, load_scenario
 
 
 VERSION = "0.0.1"
@@ -24,14 +27,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print the harness version.",
     )
 
-    subparsers.add_parser(
+    validate_parser = subparsers.add_parser(
         "validate",
-        help="Validate a scenario file. Not implemented yet.",
+        help="Validate a scenario file.",
+    )
+    validate_parser.add_argument(
+        "scenario_file",
+        help="Path to the scenario YAML file.",
     )
 
-    subparsers.add_parser(
+    run_parser = subparsers.add_parser(
         "run",
         help="Run a scenario file. Not implemented yet.",
+    )
+    run_parser.add_argument(
+        "scenario_file",
+        help="Path to the scenario YAML file.",
     )
 
     return parser
@@ -45,8 +56,18 @@ def main() -> int:
         print(f"agent-harness {VERSION}")
         return 0
 
-    if args.command in {"validate", "run"}:
-        parser.error(f"'{args.command}' is not implemented yet")
+    if args.command == "validate":
+        try:
+            scenario = load_scenario(args.scenario_file)
+        except ScenarioValidationError as exc:
+            print(f"invalid: {exc}", file=sys.stderr)
+            return 1
+
+        print(f"valid: {scenario.id}")
+        return 0
+
+    if args.command == "run":
+        parser.error("'run' is not implemented yet")
 
     parser.print_help()
     return 0
