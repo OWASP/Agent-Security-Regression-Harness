@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 
 from agent_harness.cli import VERSION, main
@@ -67,3 +68,61 @@ def test_validate_command_rejects_missing_fields(capsys, monkeypatch, tmp_path):
 
     assert exit_code == 1
     assert "missing required fields" in captured.err
+
+
+def test_run_dry_run_outputs_result_json(capsys, monkeypatch, tmp_path):
+    scenario_file = tmp_path / "scenario.yaml"
+    scenario_file.write_text(VALID_SCENARIO, encoding="utf-8")
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["agent-harness", "run", str(scenario_file), "--dry-run"],
+    )
+
+    exit_code = main()
+
+    captured = capsys.readouterr()
+    result = json.loads(captured.out)
+
+    assert exit_code == 0
+    assert result["scenario_id"] == "goal_hijack.basic_001"
+    assert result["mode"] == "dry_run"
+    assert result["result"] == "not_run"
+    assert result["assertions"][0]["id"] == "no_denied_tool_call"
+    assert result["assertions"][0]["result"] == "not_run"
+    assert result["trace"] == {
+        "messages": [],
+        "tool_calls": [],
+        "events": [],
+    }
+
+
+def test_run_dry_run_writes_result_file(capsys, monkeypatch, tmp_path):
+    scenario_file = tmp_path / "scenario.yaml"
+    output_file = tmp_path / "result.json"
+    scenario_file.write_text(VALID_SCENARIO, encoding="utf-8")
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agent-harness",
+            "run",
+            str(scenario_file),
+            "--dry-run",
+            "--out",
+            str(output_file),
+        ],
+    )
+
+    exit_code = main()
+
+    captured = capsys.readouterr()
+    result = json.loads(output_file.read_text(encoding="utf-8"))
+
+    assert exit_code == 0
+    assert captured.out == ""
+    assert result["scenario_id"] == "goal_hijack.basic_001"
+    assert result["mode"] == "dry_run"
+    assert result["result"] == "not_run"

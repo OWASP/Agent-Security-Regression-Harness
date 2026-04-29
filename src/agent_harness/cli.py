@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
+from agent_harness.runner import dry_run_scenario
 from agent_harness.scenario import ScenarioValidationError, load_scenario
 
 
@@ -38,11 +40,20 @@ def build_parser() -> argparse.ArgumentParser:
 
     run_parser = subparsers.add_parser(
         "run",
-        help="Run a scenario file. Not implemented yet.",
+        help="Run a scenario file.",
     )
     run_parser.add_argument(
         "scenario_file",
         help="Path to the scenario YAML file.",
+    )
+    run_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Validate the scenario and emit result JSON without executing a target.",
+    )
+    run_parser.add_argument(
+        "--out",
+        help="Optional path to write result JSON.",
     )
 
     return parser
@@ -67,7 +78,24 @@ def main() -> int:
         return 0
 
     if args.command == "run":
-        parser.error("'run' is not implemented yet")
+        if not args.dry_run:
+            parser.error("'run' currently requires --dry-run")
+
+        try:
+            scenario = load_scenario(args.scenario_file)
+        except ScenarioValidationError as exc:
+            print(f"invalid: {exc}", file=sys.stderr)
+            return 1
+
+        result = dry_run_scenario(scenario)
+        result_json = result.to_json()
+
+        if args.out:
+            Path(args.out).write_text(result_json + "\n", encoding="utf-8")
+        else:
+            print(result_json)
+
+        return 0
 
     parser.print_help()
     return 0
