@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "owasp-agent-security-regression-harness"
+version = "0.0.1"
+description = "OWASP harness for executable security regression testing of agentic applications and MCP-integrated systems."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [
+  { name = "Mert Satilmaz", email = "mert.satilmaz@owasp.org" }
+]
+keywords = [
+  "owasp",
+  "agent-security",
+  "ai-security",
+  "llm-security",
+  "mcp",
+  "security-testing",
+  "regression-testing"
+]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Information Technology",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Security",
+  "Topic :: Software Development :: Testing"
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/OWASP/Agent-Security-Regression-Harness"
+Repository = "https://github.com/OWASP/Agent-Security-Regression-Harness"
+Issues = "https://github.com/OWASP/Agent-Security-Regression-Harness/issues"
+
+[project.scripts]
+agent-harness = "agent_harness.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
