@@ -10,7 +10,7 @@ from agent_harness.trace import Trace
 
 
 ResultStatus = Literal["pass", "fail", "error", "not_run"]
-RunMode = Literal["dry_run", "live"]
+RunMode = Literal["dry_run", "trace", "live"]
 
 
 @dataclass(frozen=True)
@@ -57,3 +57,25 @@ class HarnessResult:
     def to_json(self) -> str:
         """Convert the harness result to formatted JSON."""
         return json.dumps(self.to_dict(), indent=2, sort_keys=True)
+    
+
+def aggregate_assertion_results(assertions: list[AssertionResult]) -> ResultStatus:
+    """Aggregate assertion results into one top-level result."""
+    
+    if not assertions:
+        return "not_run"
+    
+    statuses = [assertion.result for assertion in assertions]
+    
+    if "fail" in statuses:
+        return "fail"
+    
+    if "error" in statuses:
+        return "error"
+    
+    if all(status == "pass" for status in statuses):
+        return "pass"
+
+    return "not_run"
+
+
