@@ -6,8 +6,9 @@ import argparse
 import sys
 from pathlib import Path
 
-from agent_harness.runner import dry_run_scenario
+from agent_harness.runner import dry_run_scenario, run_scenario_with_trace
 from agent_harness.scenario import ScenarioValidationError, load_scenario
+from agent_harness.trace import TraceValidationError, load_trace
 
 
 VERSION = "0.0.1"
@@ -55,6 +56,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--out",
         help="Optional path to write result JSON.",
     )
+    run_parser.add_argument(
+        "--trace-file",
+        help="Evaluate assertions against an existing trace JSON file.",
+    )
 
     return parser
 
@@ -78,8 +83,11 @@ def main() -> int:
         return 0
 
     if args.command == "run":
-        if not args.dry_run:
-            parser.error("'run' currently requires --dry-run")
+        if args.dry_run and args.trace_file:
+            parser.error("'run' accepts either --dry-run or --trace-file, not both")
+        
+        if not args.dry_run and not args.trace_file:
+            parser.error("'run' currently requires --dry-run or --trace-file")
 
         try:
             scenario = load_scenario(args.scenario_file)
@@ -87,9 +95,18 @@ def main() -> int:
             print(f"invalid: {exc}", file=sys.stderr)
             return 1
 
-        result = dry_run_scenario(scenario)
-        result_json = result.to_json()
+        if args.dry_run:
+            result = dry_run_scenario(scenario)
+        else:
+            try:
+                trace = load_trace(args.trace_file)
+            except TraceValidationError as exc:
+                print(f"invalid trace: {exc}", file=sys.stderr)
+                return 1
 
+            result = run_scenario_with_trace(scenario, trace)
+        
+        result_json = result.to_json()
         if args.out:
             Path(args.out).write_text(result_json + "\n", encoding="utf-8")
         else:
