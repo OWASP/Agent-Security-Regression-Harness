@@ -28,3 +28,7 @@ htmlcov/
 Thumbs.db
 .vscode/
 .idea/
+
+# Claude local mentor/config files
+.claude/
+CLAUDE.md
