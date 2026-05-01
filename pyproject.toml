@@ -49,5 +49,9 @@ agent-harness = "agent_harness.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+agent_harness = ["py.typed"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
