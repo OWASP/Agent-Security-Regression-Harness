@@ -38,7 +38,18 @@ The first milestone is a minimal CLI that can:
 3. Evaluate policy assertions
 4. Emit pass/fail JSON output
 
-## Planned CLI shape
+## Usage
+
+Validate a scenario and emit a result without executing a target.
 
 ```bash
-agent-harness run scenarios/goal_hijack/basic.yaml --target http://localhost:8080/agent --out results.json
+agent-harness run path/to/scenario.yaml --dry-run
+```
+
+Evaluate assertions against a pre-recorded execution trace.
+
+```bash
+agent-harness run path/to/scenario.yaml --trace-file path/to/trace.json
+```
+
+Add `--out path/to/result.json` to either command to write the result JSON to a file instead of stdout.
