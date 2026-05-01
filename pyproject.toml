@@ -35,6 +35,9 @@ classifiers = [
 ]
 dependencies = ["PyYAML>=6.0.0"]
 
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
 [project.urls]
 Homepage = "https://github.com/OWASP/Agent-Security-Regression-Harness"
 Repository = "https://github.com/OWASP/Agent-Security-Regression-Harness"
