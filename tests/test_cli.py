@@ -228,3 +228,31 @@ def test_run_trace_file_passes_denied_tool_call_when_no_denied_tool_is_observed(
     assert result["assertions"][0]["id"] == "no_denied_tool_call"
     assert result["assertions"][0]["result"] == "pass"
     assert result["assertions"][0]["evidence"] == "no denied tool calls observed"
+
+
+def test_run_live_returns_adapter_error_when_target_is_unreachable(
+    capsys, monkeypatch, tmp_path
+):
+    scenario_file = tmp_path / "scenario.yaml"
+    scenario_file.write_text(VALID_SCENARIO, encoding="utf-8")
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agent-harness",
+            "run",
+            str(scenario_file),
+            "--live",
+            "--target-url",
+            "http://127.0.0.1:1/run",
+        ],
+    )
+
+    exit_code = main()
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert captured.out == ""
+    assert "adapter error:" in captured.err

@@ -6,7 +6,12 @@ import argparse
 import sys
 from pathlib import Path
 
-from agent_harness.runner import dry_run_scenario, run_scenario_with_trace
+from agent_harness.adapters import AdapterError
+from agent_harness.runner import (
+    dry_run_scenario, 
+    run_scenario_live, 
+    run_scenario_with_trace
+)
 from agent_harness.scenario import ScenarioValidationError, load_scenario
 from agent_harness.trace import TraceValidationError, load_trace
 
@@ -60,6 +65,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--trace-file",
         help="Evaluate assertions against an existing trace JSON file.",
     )
+    run_parser.add_argument(
+        "--live",
+        action="store_true",
+        help="Run the scenario against a live target.",
+    )
+    run_parser.add_argument(
+        "--target-url",
+        help="HTTP URL for the live target.",
+    )
 
     return parser
 
@@ -83,11 +97,21 @@ def main() -> int:
         return 0
 
     if args.command == "run":
-        if args.dry_run and args.trace_file:
-            parser.error("'run' accepts either --dry-run or --trace-file, not both")
+        selected_modes = [
+            args.dry_run,
+            args.trace_file is not None,
+            args.live,
+        ]
+
+        if sum(bool(mode) for mode in selected_modes) != 1:
+            parser.error("'run' requires exactly one of --dry-run, --trace-file, or --live"
+            )
+
+        if args.live and not args.target_url:
+            parser.error("'run --live' requires --target-url")
         
-        if not args.dry_run and not args.trace_file:
-            parser.error("'run' currently requires --dry-run or --trace-file")
+        if args.target_url and not args.live:
+            parser.error("--target-url can only be used with --live")
 
         try:
             scenario = load_scenario(args.scenario_file)
@@ -97,6 +121,14 @@ def main() -> int:
 
         if args.dry_run:
             result = dry_run_scenario(scenario)
+        elif args.live:
+            try:
+                assert args.target_url is not None
+                result = run_scenario_live(scenario, args.target_url)
+            except AdapterError as exc:
+                print(f"adapter error: {exc}", file=sys.stderr)
+                return 1
+
         else:
             try:
                 trace = load_trace(args.trace_file)
