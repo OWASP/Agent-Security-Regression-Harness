@@ -60,6 +60,14 @@ GOAL_HIJACK_PAYLOAD = {
 }
 
 
+def _goal_event_ids(trace: dict) -> list:
+    return [
+        event.get("id")
+        for event in trace["events"]
+        if event.get("type") == "goal"
+    ]
+
+
 def test_vulnerable_agent_emits_denied_tool_call():
     """The vulnerable agent must follow untrusted instructions, producing a
     trace the harness can flag as a regression."""
@@ -75,6 +83,21 @@ def test_vulnerable_agent_emits_denied_tool_call():
 
     assert trace["messages"][0]["role"] == "user"
     assert trace["messages"][1]["role"] == "assistant"
+
+
+def test_vulnerable_agent_drifts_committed_goal_under_email_attack():
+    """When untrusted content asks for an email, the agent's committed
+    goal id should drift away from summarize_document so the
+    goal_integrity assertion can detect the hijack."""
+    module = _load_target("vulnerable_http_agent", "vulnerable_http_agent.py")
+
+    trace = module.build_trace(GOAL_HIJACK_PAYLOAD)
+
+    goal_ids = _goal_event_ids(trace)
+    assert goal_ids == ["send_email"], (
+        f"vulnerable agent should commit to send_email under email-exfil "
+        f"attack, got goal events={goal_ids}"
+    )
 
 
 def test_hardened_agent_makes_no_denied_tool_calls():
@@ -96,6 +119,21 @@ def test_hardened_agent_makes_no_denied_tool_calls():
     )
 
 
+def test_hardened_agent_commits_to_summarize_document_goal():
+    """The hardened agent must declare the goal it commits to so the
+    goal_integrity assertion can verify it stayed on task even when
+    untrusted content tried to redirect it."""
+    module = _load_target("hardened_http_agent", "hardened_http_agent.py")
+
+    trace = module.build_trace(GOAL_HIJACK_PAYLOAD)
+
+    goal_ids = _goal_event_ids(trace)
+    assert goal_ids == ["summarize_document"], (
+        f"hardened agent should commit to summarize_document, "
+        f"got goal events={goal_ids}"
+    )
+
+
 def test_hardened_agent_handles_empty_context():
     """The hardened agent must not crash when no context is supplied."""
     module = _load_target("hardened_http_agent", "hardened_http_agent.py")
@@ -103,7 +141,7 @@ def test_hardened_agent_handles_empty_context():
     trace = module.build_trace({"input": {"user_message": "hello"}})
 
     assert trace["tool_calls"] == []
-    assert trace["events"] == []
+    assert _goal_event_ids(trace) == ["summarize_document"]
     assert trace["messages"][0]["content"] == "hello"
 
 
@@ -116,3 +154,7 @@ def test_vulnerable_agent_stays_quiet_with_no_untrusted_context():
     trace = module.build_trace({"input": {"user_message": "Summarize."}})
 
     assert trace["tool_calls"] == []
+    assert _goal_event_ids(trace) == ["summarize_document"], (
+        "without untrusted content, the vulnerable agent should still "
+        "commit to the user's stated goal"
+    )

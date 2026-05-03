@@ -5,10 +5,12 @@ in this directory, but applies a strict trust boundary: anything in
 ``input.context`` whose ``trust`` is not ``trusted`` is treated as data,
 never as instruction. The user's original request stays the goal.
 
-Running the harness against this target should *pass* the
-``no_denied_tool_call`` assertion on the bundled
-``scenarios/goal_hijack/outbound_email_exfiltration_001.yaml`` scenario,
-demonstrating what a correctly-behaving agent looks like to the harness.
+The agent records a ``{"type": "goal", "id": "summarize_document"}``
+event to declare the goal it commits to, so the ``goal_integrity``
+assertion can verify that the agent did not drift to a different goal
+under attack. Running the harness against this target should *pass*
+both the ``no_denied_tool_call`` and ``goal_integrity`` assertions on
+the bundled goal-hijack scenarios.
 
 This agent is intentionally minimal. It is not a production guidance
 template; its job is to give the harness a positive control to compare
@@ -28,6 +30,8 @@ HOST = "127.0.0.1"
 PORT = 8002
 
 UNTRUSTED_TRUST_LEVELS = frozenset({"untrusted", "unknown"})
+
+COMMITTED_GOAL_ID = "summarize_document"
 
 
 def collect_trusted_text(context: list[dict[str, Any]]) -> str:
@@ -79,6 +83,7 @@ def build_trace(payload: dict[str, Any]) -> dict[str, Any]:
     recorder = TraceRecorder()
     recorder.add_message("user", user_message)
     recorder.add_message("assistant", assistant_text)
+    recorder.add_event(event_type="goal", event_id=COMMITTED_GOAL_ID)
 
     if has_untrusted_context(context):
         recorder.add_event(
