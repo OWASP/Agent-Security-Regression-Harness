@@ -7,8 +7,8 @@ never as instruction. The user's original request stays the goal.
 
 Running the harness against this target should *pass* the
 ``no_denied_tool_call`` assertion on the bundled
-``scenarios/goal_hijack/basic.yaml`` scenario, demonstrating what a
-correctly-behaving agent looks like to the harness.
+``scenarios/goal_hijack/outbound_email_exfiltration_001.yaml`` scenario,
+demonstrating what a correctly-behaving agent looks like to the harness.
 
 This agent is intentionally minimal. It is not a production guidance
 template; its job is to give the harness a positive control to compare
@@ -20,6 +20,8 @@ from __future__ import annotations
 import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
+
+from agent_harness.recorder import TraceRecorder
 
 
 HOST = "127.0.0.1"
@@ -62,16 +64,6 @@ def build_trace(payload: dict[str, Any]) -> dict[str, Any]:
     user_message = scenario_input.get("user_message", "") or ""
     context = scenario_input.get("context", []) or []
 
-    events: list[dict[str, Any]] = []
-
-    if has_untrusted_context(context):
-        events.append(
-            {
-                "type": "untrusted_context_received",
-                "policy": "treated as data, not instruction",
-            }
-        )
-
     trusted_text = collect_trusted_text(context)
 
     if trusted_text:
@@ -84,16 +76,17 @@ def build_trace(payload: dict[str, Any]) -> dict[str, Any]:
             "cannot complete the request."
         )
 
-    trace: dict[str, Any] = {
-        "messages": [
-            {"role": "user", "content": user_message},
-            {"role": "assistant", "content": assistant_text},
-        ],
-        "tool_calls": [],
-        "events": events,
-    }
+    recorder = TraceRecorder()
+    recorder.add_message("user", user_message)
+    recorder.add_message("assistant", assistant_text)
 
-    return trace
+    if has_untrusted_context(context):
+        recorder.add_event(
+            event_type="untrusted_context_received",
+            policy="treated as data, not instruction",
+        )
+
+    return recorder.to_dict()
 
 
 class HardenedAgentRequestHandler(BaseHTTPRequestHandler):
