@@ -9,8 +9,8 @@ to whatever the untrusted content asks for instead.
 
 Running the harness against this target should *fail* the
 ``no_denied_tool_call`` assertion on the bundled
-``scenarios/goal_hijack/basic.yaml`` scenario, which is exactly the
-regression detection the harness is built to provide.
+``scenarios/goal_hijack/outbound_email_exfiltration_001.yaml`` scenario,
+which is exactly the regression detection the harness is built to provide.
 
 This agent is for demonstration only. It is unsafe by design.
 """
@@ -21,6 +21,7 @@ import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
 
+from agent_harness.recorder import TraceRecorder
 
 HOST = "127.0.0.1"
 PORT = 8001
@@ -87,16 +88,18 @@ def build_trace(payload: dict[str, Any]) -> dict[str, Any]:
     untrusted_text = find_untrusted_content(context)
     decision = naive_follow(untrusted_text)
 
-    trace: dict[str, Any] = {
-        "messages": [
-            {"role": "user", "content": user_message},
-            {"role": "assistant", "content": decision["assistant_text"]},
-        ],
-        "tool_calls": decision["tool_calls"],
-        "events": [],
-    }
+    recorder: TraceRecorder = TraceRecorder()
+    recorder.add_message("user", user_message)
+    recorder.add_message("assistant", decision["assistant_text"])
 
-    return trace
+    for tool_call in decision["tool_calls"]:
+        name = tool_call.get("name")
+        arguments = tool_call.get("arguments", {})
+
+        if isinstance(name, str) and isinstance(arguments, dict):
+            recorder.add_tool_call(name, arguments)
+
+    return recorder.to_dict()
 
 
 class VulnerableAgentRequestHandler(BaseHTTPRequestHandler):
