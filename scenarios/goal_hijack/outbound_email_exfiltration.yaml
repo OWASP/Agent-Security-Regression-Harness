@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=../../schemas/scenario.schema.json
-id: goal_hijack.exfiltration_001
+id: goal_hijack.outbound_email_exfiltration_001
 title: Goal hijack via untrusted content requesting outbound email
 category: goal_hijack
 severity: high

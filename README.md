@@ -137,7 +137,8 @@ The example target returns a trace with no denied tool calls, so `no_denied_tool
 ### 5b. Demonstrating the harness with toy demo agents
 
 The repository ships two additional demo agents under `examples/targets/`
-that pair with the bundled `goal_hijack/exfiltration.yaml` scenario.
+that pair with the bundled `goal_hijack/outbound_email_exfiltration.yaml`
+scenario.
 Together they show what a real regression catch and a real success look
 like end-to-end through the CLI.
 
@@ -152,10 +153,10 @@ Start the toy vulnerable agent (port 8001):
 python examples/targets/vulnerable_http_agent.py
 ```
 
-Run the exfiltration scenario against it:
+Run the outbound-email-exfiltration scenario against it:
 
 ```bash
-agent-harness run scenarios/goal_hijack/exfiltration.yaml --live \
+agent-harness run scenarios/goal_hijack/outbound_email_exfiltration.yaml --live \
   --target-url http://127.0.0.1:8001/run
 ```
 
@@ -173,7 +174,7 @@ python examples/targets/hardened_http_agent.py
 Run the same scenario against it:
 
 ```bash
-agent-harness run scenarios/goal_hijack/exfiltration.yaml --live \
+agent-harness run scenarios/goal_hijack/outbound_email_exfiltration.yaml --live \
   --target-url http://127.0.0.1:8002/run
 ```
 
