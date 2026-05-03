@@ -4,6 +4,8 @@ The OWASP Agent Security Regression Harness is an open source, vendor-neutral te
 
 The project helps builders and defenders verify that changes to prompts, models, tools, retrieval sources, memory, approval flows, or MCP integrations do not reintroduce known security failures.
 
+![AI agent wearing a security harness](docs/ai_agent_harness.png)
+
 ## What this project does
 
 This project provides a code-first harness for:
