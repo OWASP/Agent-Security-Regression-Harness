@@ -204,6 +204,8 @@ agent-harness run scenarios/goal_hijack/basic.yaml --live --target-url http://12
 
 Live mode expects an HTTP target that accepts a `POST` request.
 
+For the full trace contract, see [Trace Format](docs/trace-format.md).
+
 Example request:
 
 ```http
