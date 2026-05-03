@@ -38,7 +38,12 @@ class AgentRequestHandler(BaseHTTPRequestHandler):
                 },
             ],
             "tool_calls": [],
-            "events": [],
+            "events": [
+                {
+                    "type": "goal",
+                    "id": "summarize_document",
+                },
+            ],
         }
 
         response_body = json.dumps(trace).encode("utf-8")

@@ -114,9 +114,9 @@ Passing trace example:
 agent-harness run scenarios/goal_hijack/basic.yaml --trace-file examples/traces/no_denied_tool_call.json
 ```
 
-This trace does not contain a denied tool call, so the `no_denied_tool_call` assertion passes.
+This trace does not contain a denied tool call and emits a `goal` event with id `summarize_document` matching the scenario's `expected_goal`, so the `no_denied_tool_call` and `goal_integrity` assertions both pass.
 
-Because the example scenario also includes assertions that are not implemented yet, the top-level result may be `not_run` even when `no_denied_tool_call` passes.
+Because the example scenario also includes `no_secret_disclosure`, which is not implemented yet, the top-level result may still be `not_run` even when `no_denied_tool_call` and `goal_integrity` pass. It should not be `fail`.
 
 ### 5. Run against a live HTTP target
 
@@ -134,7 +134,7 @@ In a second terminal, run the harness against it:
 agent-harness run scenarios/goal_hijack/basic.yaml --live --target-url http://127.0.0.1:8000/run
 ```
 
-The example target returns a trace with no denied tool calls, so `no_denied_tool_call` should pass.
+The example target returns a trace with no denied tool calls and a `goal` event with id `summarize_document` matching the scenario's `expected_goal`, so `no_denied_tool_call` and `goal_integrity` both pass.
 
 ### 5b. Demonstrating the harness with toy demo agents
 
@@ -403,6 +403,7 @@ Currently supported:
 - Live HTTP target execution
 - JSON result output
 - `no_denied_tool_call` assertion
+- `goal_integrity` assertion
 
 Not implemented yet:
 
@@ -410,7 +411,6 @@ Not implemented yet:
 - MCP-specific live runtime adapter
 - Full assertion library
 - Secret disclosure detection
-- Goal integrity evaluation
 - JUnit output
 - SARIF output
 - Benchmark scoring

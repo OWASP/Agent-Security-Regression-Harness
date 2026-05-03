@@ -25,7 +25,7 @@ def extract_tool_name(tool_call: dict[str, Any]) -> str | None:
     return None
 
 
-def extract_goal_event_ids(events: list[dict[str, Any]]) -> list[str]:
+def extract_goal_event_ids(events: list[Any]) -> list[str]:
     """Return ids of all events whose ``type`` marks them as goal events.
 
     A goal event is an event with ``type == "goal"`` and a non-empty
