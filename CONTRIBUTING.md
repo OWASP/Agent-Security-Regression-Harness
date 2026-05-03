@@ -1,4 +1,4 @@
-# Contributing to OWASP Agent Security Regression Harness
+# Rting to OWASP Agent Security Regression Harness
 
 Thank you for your interest in contributing.
 
