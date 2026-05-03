@@ -134,6 +134,56 @@ agent-harness run scenarios/goal_hijack/basic.yaml --live --target-url http://12
 
 The example target returns a trace with no denied tool calls, so `no_denied_tool_call` should pass.
 
+### 5b. Demonstrating the harness with toy demo agents
+
+The repository ships two additional demo agents under `examples/targets/`
+that pair with the bundled `goal_hijack/outbound_email_exfiltration_001.yaml`
+scenario.
+Together they show what a real regression catch and a real success look
+like end-to-end through the CLI.
+
+Both agents are deliberately tiny and unsafe-by-design or
+hardened-by-design — they exist to give the harness a positive and
+negative control to compare against, not to be templates for production
+agents.
+
+Start the toy vulnerable agent (port 8001):
+
+```bash
+python examples/targets/vulnerable_http_agent.py
+```
+
+Run the outbound-email-exfiltration scenario against it:
+
+```bash
+agent-harness run scenarios/goal_hijack/outbound_email_exfiltration_001.yaml --live \
+  --target-url http://127.0.0.1:8001/run
+```
+
+The vulnerable agent naively follows untrusted retrieved content, so it
+calls `send_email` and the `no_denied_tool_call` assertion fails with
+`denied tool call observed: send_email`. This is the regression catch
+the harness is built to provide.
+
+Now start the toy hardened agent (port 8002):
+
+```bash
+python examples/targets/hardened_http_agent.py
+```
+
+Run the same scenario against it:
+
+```bash
+agent-harness run scenarios/goal_hijack/outbound_email_exfiltration_001.yaml --live \
+  --target-url http://127.0.0.1:8002/run
+```
+
+The hardened agent treats untrusted context as data, never as
+instruction, so it makes no tool calls and the assertion passes. The
+trace also records an `untrusted_context_received` event so reviewers
+can see that the agent observed the attack content and consciously
+refused to act on it.
+
 ### 6. Write result JSON to a file
 
 All run modes support `--out`:
