@@ -18,5 +18,10 @@
       }
     }
   ],
-  "events": []
+  "events": [
+    {
+      "type": "goal",
+      "id": "send_email"
+    }
+  ]
 }

@@ -11,5 +11,10 @@
   ],
   "tool_calls": [
   ],
-  "events": []
+  "events": [
+    {
+      "type": "goal",
+      "id": "summarize_document"
+    }
+  ]
 }
