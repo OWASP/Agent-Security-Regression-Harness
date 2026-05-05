@@ -256,3 +256,92 @@ def test_run_live_returns_adapter_error_when_target_is_unreachable(
     assert exit_code == 1
     assert captured.out == ""
     assert "adapter error:" in captured.err
+
+
+def test_run_python_target_outputs_result_json(capsys, monkeypatch, tmp_path):
+    scenario_file = tmp_path / "scenario.yaml"
+    scenario_file.write_text(VALID_SCENARIO, encoding="utf-8")
+
+    target_module = tmp_path / "cli_python_target.py"
+    target_module.write_text(
+        '''
+def run_agent(payload):
+    return {
+        "messages": [
+            {
+                "role": "user",
+                "content": payload["input"].get("user_message", ""),
+            },
+            {
+                "role": "assistant",
+                "content": "Here is the summary.",
+            },
+        ],
+        "tool_calls": [],
+        "events": [
+            {
+                "type": "goal",
+                "id": "summarize_document",
+            },
+        ],
+    }
+''',
+        encoding="utf-8",
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agent-harness",
+            "run",
+            str(scenario_file),
+            "--python-target",
+            "cli_python_target:run_agent",
+        ],
+    )
+
+    exit_code = main()
+
+    captured = capsys.readouterr()
+    result = json.loads(captured.out)
+
+    assert exit_code == 0
+    assert result["scenario_id"] == "goal_hijack.basic_001"
+    assert result["mode"] == "live"
+    assert result["result"] == "pass"
+    assert result["assertions"][0]["id"] == "no_denied_tool_call"
+    assert result["assertions"][0]["result"] == "pass"
+    assert result["trace"]["messages"][0]["role"] == "user"
+    assert result["trace"]["tool_calls"] == []
+
+
+def test_run_python_target_returns_adapter_error_for_bad_import(
+    capsys,
+    monkeypatch,
+    tmp_path,
+):
+    scenario_file = tmp_path / "scenario.yaml"
+    scenario_file.write_text(VALID_SCENARIO, encoding="utf-8")
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agent-harness",
+            "run",
+            str(scenario_file),
+            "--python-target",
+            "does_not_exist:run_agent",
+        ],
+    )
+
+    exit_code = main()
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert captured.out == ""
+    assert "adapter error:" in captured.err
+    assert "Could not import Python target module" in captured.err

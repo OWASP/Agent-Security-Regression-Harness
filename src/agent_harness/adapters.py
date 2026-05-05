@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import importlib
 import json
 from typing import Any
 from urllib import error, request
@@ -29,6 +30,52 @@ def _trace_from_dict(trace_data: dict[str, Any], error_prefix: str) -> Trace:
         return Trace.from_dict(trace_data)
     except TraceValidationError as exc:
         raise AdapterError(f"{error_prefix}: {exc}") from exc
+
+
+def load_python_callable(
+    import_path: str,
+) -> Callable[[dict[str, Any]], Trace | dict[str, Any]]:
+    """Load a Python callable from a module:function import path."""
+    if not isinstance(import_path, str) or not import_path.strip():
+        raise AdapterError("Python target import path must be a non-empty string")
+
+    if ":" not in import_path:
+        raise AdapterError(
+            "Python target must use 'module:function' format, "
+            f"got {import_path!r}"
+        )
+
+    module_name, callable_name = import_path.split(":", 1)
+    module_name = module_name.strip()
+    callable_name = callable_name.strip()
+
+    if not module_name or not callable_name:
+        raise AdapterError(
+            "Python target must use 'module:function' format with both parts present"
+        )
+
+    try:
+        module = importlib.import_module(module_name)
+    except Exception as exc:
+        raise AdapterError(
+            f"Could not import Python target module {module_name!r}"
+        ) from exc
+
+    target: Any = module
+
+    try:
+        for attr in callable_name.split("."):
+            target = getattr(target, attr)
+    except AttributeError as exc:
+        raise AdapterError(
+            f"Python target callable {callable_name!r} was not found "
+            f"in module {module_name!r}"
+        ) from exc
+
+    if not callable(target):
+        raise AdapterError(f"Python target {import_path!r} is not callable")
+
+    return target
 
 
 def run_http_target(scenario: Scenario, target_url: str) -> Trace:

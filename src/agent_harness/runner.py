@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from agent_harness.adapters import run_http_target
+from agent_harness.adapters import (
+    load_python_callable,
+    run_http_target,
+    run_python_callable_target,
+)
 from agent_harness.assertions import evaluate_assertions
 from agent_harness.result import AssertionResult, HarnessResult, aggregate_assertion_results
 from agent_harness.scenario import Scenario
@@ -62,3 +66,21 @@ def run_scenario_live(scenario: Scenario, target_url: str) -> HarnessResult:
         trace=trace,
     )
 
+
+def run_scenario_with_python_target(
+    scenario: Scenario,
+    python_target: str,
+) -> HarnessResult:
+    """Run a scenario against a local Python callable target."""
+    target_callable = load_python_callable(python_target)
+    trace = run_python_callable_target(scenario, target_callable)
+    assertion_results = evaluate_assertions(scenario, trace)
+    top_level_result = aggregate_assertion_results(assertion_results)
+
+    return HarnessResult(
+        scenario_id=scenario.id,
+        mode="live",
+        result=top_level_result,
+        assertions=assertion_results,
+        trace=trace,
+    )
