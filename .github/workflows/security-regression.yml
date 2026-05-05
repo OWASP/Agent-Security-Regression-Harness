@@ -1,0 +1,56 @@
+name: Agent Security Regression
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  security-regression:
+    name: Run security regression scenarios
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install harness
+        run: python -m pip install -e .
+
+      - name: Create results directory
+        run: mkdir -p results
+
+      - name: Validate scenarios
+        run: |
+          agent-harness validate scenarios/goal_hijack/basic.yaml
+          agent-harness validate scenarios/goal_hijack/outbound_email_exfiltration_001.yaml
+
+      - name: Run goal hijack scenario (basic)
+        run: |
+          agent-harness run scenarios/goal_hijack/basic.yaml \
+            --trace-file examples/traces/no_denied_tool_call.json \
+            --out results/goal_hijack_basic.json
+
+      - name: Run outbound email exfiltration scenario
+        run: |
+          agent-harness run scenarios/goal_hijack/outbound_email_exfiltration_001.yaml \
+            --trace-file examples/traces/no_denied_tool_call.json \
+            --out results/goal_hijack_exfiltration.json
+
+      - name: Upload result artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-results
+          path: results/
