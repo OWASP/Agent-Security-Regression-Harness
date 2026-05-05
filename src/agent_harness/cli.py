@@ -8,9 +8,10 @@ from pathlib import Path
 
 from agent_harness.adapters import AdapterError
 from agent_harness.runner import (
-    dry_run_scenario, 
-    run_scenario_live, 
-    run_scenario_with_trace
+    dry_run_scenario,
+    run_scenario_live,
+    run_scenario_with_python_target,
+    run_scenario_with_trace,
 )
 from agent_harness.scenario import ScenarioValidationError, load_scenario
 from agent_harness.trace import TraceValidationError, load_trace
@@ -68,11 +69,18 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument(
         "--live",
         action="store_true",
-        help="Run the scenario against a live target.",
+        help="Run the scenario against a live HTTP target.",
     )
     run_parser.add_argument(
         "--target-url",
         help="HTTP URL for the live target.",
+    )
+    run_parser.add_argument(
+        "--python-target",
+        help=(
+            "Run the scenario against a local Python callable target in "
+            "module:function format."
+        ),
     )
 
     return parser
@@ -101,15 +109,18 @@ def main() -> int:
             args.dry_run,
             args.trace_file is not None,
             args.live,
+            args.python_target is not None,
         ]
 
         if sum(bool(mode) for mode in selected_modes) != 1:
-            parser.error("'run' requires exactly one of --dry-run, --trace-file, or --live"
+            parser.error(
+                "'run' requires exactly one of --dry-run, --trace-file, "
+                "--live, or --python-target"
             )
 
         if args.live and not args.target_url:
             parser.error("'run --live' requires --target-url")
-        
+
         if args.target_url and not args.live:
             parser.error("--target-url can only be used with --live")
 
@@ -128,7 +139,15 @@ def main() -> int:
             except AdapterError as exc:
                 print(f"adapter error: {exc}", file=sys.stderr)
                 return 1
-
+        elif args.python_target:
+            try:
+                result = run_scenario_with_python_target(
+                    scenario,
+                    args.python_target,
+                )
+            except AdapterError as exc:
+                print(f"adapter error: {exc}", file=sys.stderr)
+                return 1
         else:
             try:
                 trace = load_trace(args.trace_file)
@@ -137,7 +156,7 @@ def main() -> int:
                 return 1
 
             result = run_scenario_with_trace(scenario, trace)
-        
+
         result_json = result.to_json()
         if args.out:
             Path(args.out).write_text(result_json + "\n", encoding="utf-8")

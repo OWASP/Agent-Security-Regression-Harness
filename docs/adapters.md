@@ -340,6 +340,16 @@ Adapter tests should not require:
 
 ## Current adapters
 
+### Python callable adapter
+
+The Python callable adapter runs a local Python function directly, without starting an HTTP server.
+
+Example:
+
+```bash
+agent-harness run scenarios/goal_hijack/basic.yaml \
+  --python-target examples.targets.python_callable_agent:run_agent
+
 ### HTTP adapter
 
 The HTTP adapter sends scenario input to a live HTTP target and expects trace-shaped JSON in response.
