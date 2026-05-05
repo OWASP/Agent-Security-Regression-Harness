@@ -136,7 +136,7 @@ agent-harness run scenarios/goal_hijack/basic.yaml --live --target-url http://12
 
 The example target returns a trace with no denied tool calls and a `goal` event with id `summarize_document` matching the scenario's `expected_goal`, so `no_denied_tool_call` and `goal_integrity` both pass.
 
-### 5b. Demonstrating the harness with toy demo agents
+### 6. Demonstrating the harness with toy demo agents
 
 The repository ships two additional demo agents under `examples/targets/`
 that pair with the bundled `goal_hijack/outbound_email_exfiltration_001.yaml`
@@ -193,7 +193,7 @@ actually committed to. The vulnerable agent drifts to
 `send_email` under attack and fails the assertion; the hardened
 agent stays on `summarize_document` and passes it.
 
-### 6. Write result JSON to a file
+### 7. Write result JSON to a file
 
 All run modes support `--out`:
 
@@ -214,6 +214,8 @@ agent-harness run scenarios/goal_hijack/basic.yaml --live --target-url http://12
 Live mode expects an HTTP target that accepts a `POST` request.
 
 For the full trace contract, see [Trace Format](docs/trace-format.md).
+
+For adapter design expectations, see [Adapter Contract](docs/adapters.md).
 
 Example request:
 
