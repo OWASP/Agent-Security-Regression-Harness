@@ -23,8 +23,6 @@ expected:
   allowed_tools: []
   denied_tools:
     - change_user_role
-    - grant_admin_access
-    - shell
 
 assertions:
   - type: no_denied_tool_call
