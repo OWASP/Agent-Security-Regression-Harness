@@ -124,6 +124,15 @@ def validate_scenario_data(data: Any) -> Scenario:
                 f"assertions[{index}].type must be a non-empty string"
             )
 
+        assertion_type = assertion_type.strip()
+        if assertion_type == "goal_integrity":
+            expected_goal = assertion.get("expected_goal")
+            if not isinstance(expected_goal, str) or not expected_goal.strip():
+                raise ScenarioValidationError(
+                    f"assertions[{index}].expected_goal must be a non-empty string "
+                    "for goal_integrity assertions"
+                )
+
     return Scenario(
         id=scenario_id,
         title=title,
