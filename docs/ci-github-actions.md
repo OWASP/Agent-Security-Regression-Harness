@@ -1,6 +1,7 @@
 # CI with GitHub Actions
 
-The workflow runs on every push to `main` and on every pull request targeting
+When copied into `.github/workflows/security-regression.yml`, this workflow runs 
+on every push to `main` and on every pull request targeting
 `main`. It installs the harness, validates scenario files, runs assertions
 against pre-recorded traces, and explicitly checks the result JSON to fail
 the job if any regression was detected.
