@@ -41,3 +41,48 @@ scenario/goal-hijack-basic
 docs/scenario-spec
 feature/http-agent-adapter
 fix/result-json-output
+```
+
+## AI-assisted contributions
+
+AI-assisted contributions are allowed, but they must be disclosed.
+
+This is a security-focused OWASP project. Human contributors remain
+responsible for every line they submit, including code, documentation,
+tests, and scenarios.
+
+Do not submit AI-generated output that you do not understand, cannot
+explain, or have not tested.
+
+If you used AI tooling such as Claude Code, ChatGPT, GitHub Copilot,
+Cursor, or similar tools to generate or substantially modify your
+contribution, disclose it in your pull request description.
+
+Your disclosure should include:
+
+- The tool(s) used
+- What parts were AI-assisted
+- How you reviewed the output
+- What tests/checks you ran
+
+AI tools must not be listed as the sole responsible author. The human
+submitter remains accountable.
+
+Maintainers may request changes or close pull requests that appear to
+be unreviewed generated output, are too large to review safely, or
+cannot be explained by the human submitter.
+
+To keep review quality high, prefer small and focused pull requests.
+
+### Suggested PR disclosure format
+
+If AI assistance was used, include a section like this in your PR body:
+
+```markdown
+## AI assistance disclosure
+
+- Tools used: <tool names>
+- AI-assisted areas: <files/sections>
+- Human review performed: <how you reviewed and validated>
+- Tests/checks run: <commands or CI checks>
+```
