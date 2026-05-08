@@ -41,3 +41,35 @@ scenario/goal-hijack-basic
 docs/scenario-spec
 feature/http-agent-adapter
 fix/result-json-output
+```
+
+## AI-assisted contributions
+
+### Policy
+
+AI-assisted contributions are allowed, but they must be disclosed.
+
+Contributors remain responsible for every line they submit. Do not submit AI-generated code, documentation, tests, or scenarios that you do not understand, cannot explain, or have not tested.
+
+If AI tools such as Claude Code, ChatGPT, GitHub Copilot, Cursor, or similar tools were used to generate or substantially modify a contribution, disclose that use in the pull request description.
+
+### Disclosure
+
+The disclosure should include:
+
+- The tool used
+- What parts of the contribution were AI-assisted
+- How the contributor reviewed the output
+- The tests or checks that were run
+
+AI tools should not be listed as the sole responsible author. The human submitter remains accountable for the contribution.
+
+### What maintainers may do
+
+Maintainers may request changes or close pull requests that:
+
+- Appear to be unreviewed generated output
+- Are too large to review safely
+- Cannot be explained by the human contributor
+
+To keep review quality high, prefer small and focused pull requests.
