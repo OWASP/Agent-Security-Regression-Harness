@@ -45,44 +45,31 @@ fix/result-json-output
 
 ## AI-assisted contributions
 
+### Policy
+
 AI-assisted contributions are allowed, but they must be disclosed.
 
-This is a security-focused OWASP project. Human contributors remain
-responsible for every line they submit, including code, documentation,
-tests, and scenarios.
+Contributors remain responsible for every line they submit. Do not submit AI-generated code, documentation, tests, or scenarios that you do not understand, cannot explain, or have not tested.
 
-Do not submit AI-generated output that you do not understand, cannot
-explain, or have not tested.
+If AI tools such as Claude Code, ChatGPT, GitHub Copilot, Cursor, or similar tools were used to generate or substantially modify a contribution, disclose that use in the pull request description.
 
-If you used AI tooling such as Claude Code, ChatGPT, GitHub Copilot,
-Cursor, or similar tools to generate or substantially modify your
-contribution, disclose it in your pull request description.
+### Disclosure
 
-Your disclosure should include:
+The disclosure should include:
 
-- The tool(s) used
-- What parts were AI-assisted
-- How you reviewed the output
-- What tests/checks you ran
+- The tool used
+- What parts of the contribution were AI-assisted
+- How the contributor reviewed the output
+- The tests or checks that were run
 
-AI tools must not be listed as the sole responsible author. The human
-submitter remains accountable.
+AI tools should not be listed as the sole responsible author. The human submitter remains accountable for the contribution.
 
-Maintainers may request changes or close pull requests that appear to
-be unreviewed generated output, are too large to review safely, or
-cannot be explained by the human submitter.
+### What maintainers may do
+
+Maintainers may request changes or close pull requests that:
+
+- Appear to be unreviewed generated output
+- Are too large to review safely
+- Cannot be explained by the human contributor
 
 To keep review quality high, prefer small and focused pull requests.
-
-### Suggested PR disclosure format
-
-If AI assistance was used, include a section like this in your PR body:
-
-```markdown
-## AI assistance disclosure
-
-- Tools used: <tool names>
-- AI-assisted areas: <files/sections>
-- Human review performed: <how you reviewed and validated>
-- Tests/checks run: <commands or CI checks>
-```
