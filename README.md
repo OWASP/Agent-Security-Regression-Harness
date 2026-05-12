@@ -76,6 +76,8 @@ Expected output:
 agent-harness 0.0.1
 ```
 
+For authoring guidance, see [Scenario Specification](docs/scenario-spec.md).
+
 ### 2. Validate a scenario
 
 Validate the included goal hijack scenario:
