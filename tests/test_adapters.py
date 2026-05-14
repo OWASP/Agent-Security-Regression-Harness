@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 from agent_harness.adapters import (
     AdapterError,
     load_python_callable,
-    run_python_callable_target,
+    run_python_callable_target, run_http_target,
 )
 from agent_harness.trace import Trace
 from test_assertions import make_scenario
@@ -183,3 +185,24 @@ def test_load_python_callable_rejects_non_callable(tmp_path, monkeypatch):
 
     with pytest.raises(AdapterError, match="is not callable"):
         load_python_callable(f"{module_name}:NON_CALLABLE")
+
+
+@patch("urllib.request.urlopen")
+def test_run_http_target_respects_timeout(mock_urlopen):
+    """Verify the timeout parameter is passed to the underlying network call."""
+    # Create a Scenario object
+    scenario = make_scenario(assertions=[])
+
+    # Setup a fake response
+    mock_response = MagicMock()
+    mock_response.read.return_value = b'{"messages": [], "tool_calls": [], "events": []}'
+    mock_response.__enter__.return_value = mock_response
+    mock_urlopen.return_value = mock_response
+
+    # Call the adapter with 45s timeout
+    target_url = "http://example.com/api"
+    custom_timeout = 45
+
+    run_http_target(scenario, target_url, timeout=custom_timeout)
+    args, kwargs = mock_urlopen.call_args
+    assert kwargs["timeout"] == custom_timeout
