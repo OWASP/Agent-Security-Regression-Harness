@@ -659,6 +659,9 @@ Response body:
 
 The HTTP adapter is the universal integration path. Any language or framework can use it by exposing an endpoint that accepts scenario input and returns trace JSON.
 
+For a step-by-step guide to wiring a real agent into that endpoint, see
+[Integrating Your Agent](integrating-your-agent.md).
+
 ## Future adapters
 
 Planned adapter families include:

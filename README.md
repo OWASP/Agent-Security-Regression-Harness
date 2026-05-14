@@ -223,6 +223,9 @@ For the full trace contract, see [Trace Format](docs/trace-format.md).
 
 For adapter design expectations, see [Adapter Contract](docs/adapters.md).
 
+For a step-by-step guide to wiring a real agent into the harness, see
+[Integrating Your Agent](docs/integrating-your-agent.md).
+
 Example request:
 
 ```http
