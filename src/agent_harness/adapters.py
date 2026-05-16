@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import asyncio
 import importlib
 import json
 from typing import Any
@@ -135,7 +136,10 @@ def run_python_callable_target(
     payload = build_target_payload(scenario)
 
     try:
-        trace_result = agent_callable(payload)
+        if asyncio.iscoroutinefunction(agent_callable):
+            trace_result = asyncio.run(agent_callable(payload))
+        else:
+            trace_result = agent_callable(payload)
     except Exception as exc:
         raise AdapterError(f"Python callable raised an exception: {exc}") from exc
 
@@ -149,6 +153,5 @@ def run_python_callable_target(
         )
 
     return _trace_from_dict(
-        trace_result,
-        "Python callable returned invalid trace",
+        trace_result, "Python callable returned invalid trace"
     )

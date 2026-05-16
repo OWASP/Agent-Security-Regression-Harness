@@ -183,3 +183,70 @@ def test_load_python_callable_rejects_non_callable(tmp_path, monkeypatch):
 
     with pytest.raises(AdapterError, match="is not callable"):
         load_python_callable(f"{module_name}:NON_CALLABLE")
+
+
+def test_python_async_callable_receives_target_payload():
+    scenario = make_scenario(assertions=[])
+    observed_payload = {}
+
+    async def fake_agent(payload):
+        observed_payload.update(payload)
+        return {
+            "messages": [],
+            "tool_calls": [],
+            "events": [],
+        }
+
+    trace = run_python_callable_target(scenario, fake_agent)
+
+    assert isinstance(trace, Trace)
+    assert observed_payload == {
+        "scenario_id": scenario.id,
+        "input": scenario.raw["input"],
+    }
+
+
+def test_python_async_callable_accepts_trace_return():
+    scenario = make_scenario(assertions=[])
+
+    expected_trace = Trace(
+        messages=[{"role": "assistant", "content": "ok"}],
+        tool_calls=[],
+        events=[],
+    )
+
+    async def fake_agent(payload):
+        return expected_trace
+
+    trace = run_python_callable_target(scenario, fake_agent)
+
+    assert trace is expected_trace
+
+
+def test_python_async_callable_accepts_trace_shaped_dict_return():
+    scenario = make_scenario(assertions=[])
+
+    async def fake_agent(payload):
+        return {
+            "messages": [{"role": "assistant", "content": "ok"}],
+            "tool_calls": [],
+            "events": [],
+        }
+
+    trace = run_python_callable_target(scenario, fake_agent)
+
+    assert trace.to_dict() == {
+        "messages": [{"role": "assistant", "content": "ok"}],
+        "tool_calls": [],
+        "events": [],
+    }
+
+
+def test_python_async_callable_wraps_exception_in_adapter_error():
+    scenario = make_scenario(assertions=[])
+
+    async def broken_agent(payload):
+        raise RuntimeError("boom")
+
+    with pytest.raises(AdapterError, match="Python callable raised an exception"):
+        run_python_callable_target(scenario, broken_agent)

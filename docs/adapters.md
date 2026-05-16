@@ -683,3 +683,47 @@ Adapters translate external systems into the harness trace contract.
 Assertions evaluate traces.
 
 Results stay consistent across frameworks.
+
+## Python callable targets
+
+The harness can run a scenario against any Python function that accepts a payload dictionary and returns a `Trace` or a trace-shaped dictionary.
+
+This is the simplest way to integrate a custom agent.
+
+### Sync callables
+
+```python
+# my_package/my_agent.py
+
+def sync_agent(payload: dict) -> dict:
+    # Run agent...
+    return {
+        "messages": [],
+        "tool_calls": [],
+        "events": [],
+    }
+```
+
+```sh
+agent-harness run scenario.yaml --python-target my_package:sync_agent
+```
+
+### Async callables
+
+The harness will automatically detect and `await` async functions.
+
+```python
+# my_package/my_agent.py
+
+async def async_agent(payload: dict) -> dict:
+    # Run agent...
+    return {
+        "messages": [],
+        "tool_calls": [],
+        "events": [],
+    }
+```
+
+```sh
+agent-harness run scenario.yaml --python-target my_package:async_agent
+```
