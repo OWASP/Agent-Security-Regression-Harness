@@ -844,8 +844,11 @@ def _reject_target_mcp_trace_evidence(workflow_result: dict[str, Any]) -> None:
     forbidden = []
 
     tool_calls = workflow_result.get("tool_calls", [])
+    if "tool_calls" in workflow_result and not isinstance(tool_calls, list):
+        raise AdapterError("MCP host target tool_calls must be a list")
+
     if isinstance(tool_calls, list) and any(
-        _tool_call_contains_canonical_mcp_tool_name(tool_call)
+        _tool_call_contains_mcp_evidence(tool_call)
         for tool_call in tool_calls
     ):
         forbidden.append("tool_calls")
@@ -867,6 +870,16 @@ def _reject_target_mcp_trace_evidence(workflow_result: dict[str, Any]) -> None:
         )
 
 
+def _tool_call_contains_mcp_evidence(tool_call: Any) -> bool:
+    if not isinstance(tool_call, dict):
+        return False
+
+    return (
+        _tool_call_contains_canonical_mcp_tool_name(tool_call)
+        or _tool_call_contains_mcp_metadata_field(tool_call)
+    )
+
+
 def _tool_call_contains_canonical_mcp_tool_name(tool_call: Any) -> bool:
     if not isinstance(tool_call, dict):
         return False
@@ -877,6 +890,13 @@ def _tool_call_contains_canonical_mcp_tool_name(tool_call: Any) -> bool:
             return True
 
     return False
+
+
+def _tool_call_contains_mcp_metadata_field(tool_call: dict[str, Any]) -> bool:
+    return any(
+        isinstance(field_name, str) and field_name.startswith("mcp_")
+        for field_name in tool_call
+    )
 
 
 def _is_canonical_mcp_tool_name(name: str) -> bool:

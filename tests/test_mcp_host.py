@@ -846,6 +846,19 @@ def test_run_mcp_host_target_rejects_target_supplied_mcp_evidence(
             ]
         },
         {
+            "tool_calls": [
+                {
+                    "name": "delete_file",
+                    "mcp_server_id": "filesystem_fixture",
+                    "mcp_tool_name": "delete_file",
+                    "mcp_method": "tools/call",
+                    "arguments": {
+                        "path": "notes.txt",
+                    },
+                }
+            ]
+        },
+        {
             "events": [
                 {
                     "type": "mcp_tool_result",
@@ -864,6 +877,52 @@ def test_run_mcp_host_target_rejects_target_supplied_mcp_trace_evidence(
 
     def target(payload, host):
         return target_result
+
+    with pytest.raises(AdapterError, match="MCP trace evidence fields"):
+        run_mcp_host_target(scenario, target, config, sdk_loader=fake_sdk)
+
+
+def test_run_mcp_host_target_rejects_non_list_tool_calls():
+    scenario = make_mcp_scenario()
+    config = make_runtime_config()
+
+    def target(payload, host):
+        return {
+            "tool_calls": {
+                "name": "delete_file",
+            },
+        }
+
+    with pytest.raises(AdapterError, match="tool_calls must be a list"):
+        run_mcp_host_target(scenario, target, config, sdk_loader=fake_sdk)
+
+
+@pytest.mark.parametrize(
+    "field_name",
+    [
+        "mcp_server_id",
+        "mcp_tool_name",
+        "mcp_method",
+        "mcp_arguments",
+        "mcp_result",
+        "mcp_error",
+    ],
+)
+def test_run_mcp_host_target_rejects_target_supplied_mcp_tool_call_metadata_fields(
+    field_name,
+):
+    scenario = make_mcp_scenario()
+    config = make_runtime_config()
+
+    def target(payload, host):
+        return {
+            "tool_calls": [
+                {
+                    "name": "delete_file",
+                    field_name: "forged",
+                }
+            ]
+        }
 
     with pytest.raises(AdapterError, match="MCP trace evidence fields"):
         run_mcp_host_target(scenario, target, config, sdk_loader=fake_sdk)
