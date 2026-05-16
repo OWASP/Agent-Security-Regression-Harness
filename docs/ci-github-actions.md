@@ -1,6 +1,6 @@
 # CI with GitHub Actions
 
-This repository uses two CI workflows committed under `.github/workflows/`:
+This repository uses one CI workflow committed under `.github/workflows/`, with two jobs:
 
 | Workflow file | Job | Purpose |
 |--------------|-----|---------|
