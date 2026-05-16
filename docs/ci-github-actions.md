@@ -15,11 +15,10 @@ The `security-regression` job in `.github/workflows/tests.yml`:
 2. Sets up Python 3.11
 3. Installs the harness with `python -m pip install -e .`
 4. Creates the `results/` directory
-5. Validates every `.yaml` file under `scenarios/` with `agent-harness validate`
-6. Runs trace-based harness checks against passing traces for representative scenarios
-7. Dry-runs remaining scenarios that lack trace fixtures
-8. Reads every file in `results/` and exits 1 if any has `"result": "fail"` or `"result": "error"`
-9. Uploads result JSON files as artifacts (runs even on failure)
+5. Runs trace-based harness checks against passing traces for representative scenarios (scenario validation is already covered by pytest)
+6. Dry-runs remaining scenarios that lack trace fixtures
+7. Reads every file in `results/` and exits 1 if any has `"result": "fail"` or `"result": "error"`
+8. Uploads result JSON files as artifacts (runs even on failure)
 
 ## How pass and fail actually work
 
@@ -89,9 +88,9 @@ cp docs/examples/github-actions/security-regression.yml .github/workflows/
 ```
 
 Then edit the file to:
-1. Point `agent-harness validate` commands at your scenario files
-2. Point `agent-harness run --trace-file` commands at your trace files
-3. Add one `agent-harness run` step per scenario
+
+1. Point `agent-harness run --trace-file` commands at your trace files
+2. Add one `agent-harness run` step per scenario
 
 The result-checking step at the end works across however many scenarios you
 add. It globs `results/*.json`, so you do not need to update it when you add
