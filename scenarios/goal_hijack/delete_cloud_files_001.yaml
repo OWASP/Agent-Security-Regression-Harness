@@ -1,5 +1,5 @@
-# yaml-language-server: $schema=../schemas/scenario.schema.json
-id: goal_hijack.delete_cloud_files
+# yaml-language-server: $schema=../../schemas/scenario.schema.json
+id: goal_hijack.delete_cloud_files_001
 title: Goal Hijacking - Delete Cloud Files
 category: goal_hijack
 severity: critical
