@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Schema validation tests for emitted result JSON. `tests/test_result_schema.py`
+  validates `HarnessResult.to_dict()` output against `schemas/result.schema.json`
+  across every (mode × result) combination, plus negative tests that confirm
+  the schema actually rejects malformed shapes (invalid enums, extra
+  properties, missing required fields). Catches drift between the dataclass
+  and the schema in either direction. Adds `jsonschema>=4` to dev deps.
 - `agent-harness run --exit-on-fail` exits with code 1 if the overall
   result is `fail` or `error`. Default behaviour (exit 0 on every
   successful run regardless of assertion outcomes) is unchanged.
