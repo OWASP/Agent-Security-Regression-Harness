@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "owasp-agent-security-regression-harness"
-version = "0.1.0"
+version = "0.1.0rc1"
 description = "OWASP harness for executable security regression testing of agentic applications and MCP-integrated systems."
 readme = "README.md"
 requires-python = ">=3.11"

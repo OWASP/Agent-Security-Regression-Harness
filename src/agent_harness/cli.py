@@ -19,7 +19,7 @@ from agent_harness.runner import (
 from agent_harness.scenario import ScenarioValidationError, load_scenario
 from agent_harness.trace import TraceValidationError, load_trace
 
-VERSION = "0.1.0"
+VERSION = "0.1.0rc1"
 
 
 def build_parser() -> argparse.ArgumentParser:
