@@ -114,6 +114,16 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         help="Optional max_turns value passed to the OpenAI Agents SDK runner.",
     )
+    run_parser.add_argument(
+        "--exit-on-fail",
+        action="store_true",
+        help=(
+            "Exit with code 1 if the overall result is 'fail' or 'error'. "
+            "Useful for gating CI on assertion failures. Without this flag, "
+            "'agent-harness run' always exits 0 on successful runs regardless "
+            "of assertion outcomes."
+        ),
+    )
 
     return parser
 
@@ -245,6 +255,9 @@ def main() -> int:
             Path(args.out).write_text(result_json + "\n", encoding="utf-8")
         else:
             print(result_json)
+
+        if args.exit_on_fail and result.result in {"fail", "error"}:
+            return 1
 
         return 0
 

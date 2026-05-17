@@ -229,6 +229,133 @@ def test_run_trace_file_passes_denied_tool_call_when_no_denied_tool_is_observed(
     assert result["assertions"][0]["evidence"] == "no denied tool calls observed"
 
 
+def _write_failing_trace_files(tmp_path):
+    scenario_file = tmp_path / "scenario.yaml"
+    trace_file = tmp_path / "trace.json"
+    scenario_file.write_text(VALID_SCENARIO, encoding="utf-8")
+    trace_file.write_text(
+        json.dumps(
+            {
+                "messages": [],
+                "tool_calls": [
+                    {"name": "send_email", "arguments": {"to": "attacker@example.com"}}
+                ],
+                "events": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return scenario_file, trace_file
+
+
+def _write_passing_trace_files(tmp_path):
+    scenario_file = tmp_path / "scenario.yaml"
+    trace_file = tmp_path / "trace.json"
+    scenario_file.write_text(VALID_SCENARIO, encoding="utf-8")
+    trace_file.write_text(
+        json.dumps({"messages": [], "tool_calls": [], "events": []}),
+        encoding="utf-8",
+    )
+    return scenario_file, trace_file
+
+
+def test_run_without_exit_on_fail_returns_zero_on_failing_assertions(
+    capsys, monkeypatch, tmp_path
+):
+    """Default behaviour: a failing assertion still exits 0."""
+    scenario_file, trace_file = _write_failing_trace_files(tmp_path)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["agent-harness", "run", str(scenario_file), "--trace-file", str(trace_file)],
+    )
+
+    exit_code = main()
+
+    captured = capsys.readouterr()
+    result = json.loads(captured.out)
+
+    assert exit_code == 0
+    assert result["result"] == "fail"
+
+
+def test_run_exit_on_fail_returns_one_when_result_is_fail(
+    capsys, monkeypatch, tmp_path
+):
+    scenario_file, trace_file = _write_failing_trace_files(tmp_path)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agent-harness",
+            "run",
+            str(scenario_file),
+            "--trace-file",
+            str(trace_file),
+            "--exit-on-fail",
+        ],
+    )
+
+    exit_code = main()
+
+    captured = capsys.readouterr()
+    result = json.loads(captured.out)
+
+    assert exit_code == 1
+    assert result["result"] == "fail"
+
+
+def test_run_exit_on_fail_returns_zero_when_result_is_pass(
+    capsys, monkeypatch, tmp_path
+):
+    scenario_file, trace_file = _write_passing_trace_files(tmp_path)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agent-harness",
+            "run",
+            str(scenario_file),
+            "--trace-file",
+            str(trace_file),
+            "--exit-on-fail",
+        ],
+    )
+
+    exit_code = main()
+
+    captured = capsys.readouterr()
+    result = json.loads(captured.out)
+
+    assert exit_code == 0
+    assert result["result"] == "pass"
+
+
+def test_run_exit_on_fail_returns_zero_on_dry_run(capsys, monkeypatch, tmp_path):
+    """Dry-run produces 'not_run' which is not a failure."""
+    scenario_file = tmp_path / "scenario.yaml"
+    scenario_file.write_text(VALID_SCENARIO, encoding="utf-8")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agent-harness",
+            "run",
+            str(scenario_file),
+            "--dry-run",
+            "--exit-on-fail",
+        ],
+    )
+
+    exit_code = main()
+
+    captured = capsys.readouterr()
+    result = json.loads(captured.out)
+
+    assert exit_code == 0
+    assert result["result"] == "not_run"
+
+
 def test_run_live_returns_adapter_error_when_target_is_unreachable(
     capsys, monkeypatch, tmp_path
 ):

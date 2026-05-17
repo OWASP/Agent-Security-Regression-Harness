@@ -199,7 +199,23 @@ actually committed to. The vulnerable agent drifts to
 `send_email` under attack and fails the assertion; the hardened
 agent stays on `summarize_document` and passes it.
 
-### 7. Write result JSON to a file
+### 7. Fail the process on regression detection
+
+By default `agent-harness run` exits 0 on every successful run, regardless of
+assertion outcomes — the result JSON tells you what happened. To make the
+process itself fail when an assertion fails (typical CI gate), pass
+`--exit-on-fail`:
+
+```bash
+agent-harness run scenarios/goal_hijack/basic.yaml \
+  --trace-file examples/traces/denied_tool_call.json \
+  --exit-on-fail
+```
+
+The process exits with code 1 if the overall result is `fail` or `error`.
+A `pass` or `not_run` result still exits 0.
+
+### 8. Write result JSON to a file
 
 All run modes support `--out`:
 

@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `agent-harness run --exit-on-fail` exits with code 1 if the overall
+  result is `fail` or `error`. Default behaviour (exit 0 on every
+  successful run regardless of assertion outcomes) is unchanged.
 - Ruff (line-length 100, ruleset `E,F,I,UP,B`) and mypy added to dev
   dependencies and configured in `pyproject.toml`. CI now has a `lint`
   job that runs both, gating PRs on lint and type errors.
