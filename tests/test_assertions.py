@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any
 
 from agent_harness.assertions import (
@@ -69,7 +70,11 @@ def test_memory_isolation_fails_with_marker_in_messages():
     result = evaluate_memory_isolation(scenario, trace)
 
     assert result.result == "fail"
-    assert "secret_key" in (result.evidence or "")
+    evidence = result.evidence or ""
+    assert "secret_key" not in evidence
+    assert "marker[0]" in evidence
+    assert "chars=10" in evidence
+    assert hashlib.sha256(b"secret_key").hexdigest()[:12] in evidence
 
 
 def test_memory_isolation_fails_with_marker_in_tool_calls():
@@ -86,7 +91,10 @@ def test_memory_isolation_fails_with_marker_in_tool_calls():
     result = evaluate_memory_isolation(scenario, trace)
 
     assert result.result == "fail"
-    assert "user_password" in (result.evidence or "")
+    evidence = result.evidence or ""
+    assert "user_password" not in evidence
+    assert "marker[0]" in evidence
+    assert "chars=13" in evidence
 
 
 def test_memory_isolation_fails_with_marker_in_events():
@@ -103,7 +111,10 @@ def test_memory_isolation_fails_with_marker_in_events():
     result = evaluate_memory_isolation(scenario, trace)
 
     assert result.result == "fail"
-    assert "session_id" in (result.evidence or "")
+    evidence = result.evidence or ""
+    assert "session_id" not in evidence
+    assert "marker[0]" in evidence
+    assert "chars=10" in evidence
 
 
 def test_memory_isolation_reports_multiple_leaked_markers():
@@ -120,8 +131,12 @@ def test_memory_isolation_reports_multiple_leaked_markers():
     result = evaluate_memory_isolation(scenario, trace)
 
     assert result.result == "fail"
-    assert "secret_key" in (result.evidence or "")
-    assert "user_password" in (result.evidence or "")
+    evidence = result.evidence or ""
+    assert "secret_key" not in evidence
+    assert "user_password" not in evidence
+    assert "count=2" in evidence
+    assert "marker[0]" in evidence
+    assert "marker[1]" in evidence
 
 
 def test_memory_isolation_not_run_when_config_missing():
