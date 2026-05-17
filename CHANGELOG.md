@@ -15,6 +15,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the schema actually rejects malformed shapes (invalid enums, extra
   properties, missing required fields). Catches drift between the dataclass
   and the schema in either direction. Adds `jsonschema>=4` to dev deps.
+- Cross-validation tests between the Python scenario validator and
+  `schemas/scenario.schema.json`. `tests/test_scenario_schema_sync.py`
+  validates every bundled scenario through both validators and pins
+  the documented asymmetries: schema is stricter on top-level structure
+  (`additionalProperties: false`, required `target.adapter`) while Python
+  is stricter on assertion-specific conditional rules (per-assertion
+  required fields, list-of-non-empty-strings shapes). The decision is
+  documented in `docs/scenario-spec.md` under "Validation: schema vs
+  Python validator".
 - `agent-harness run --exit-on-fail` exits with code 1 if the overall
   result is `fail` or `error`. Default behaviour (exit 0 on every
   successful run regardless of assertion outcomes) is unchanged.
