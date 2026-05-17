@@ -36,7 +36,7 @@ classifiers = [
 dependencies = ["PyYAML>=6.0.0"]
 
 [project.optional-dependencies]
-dev = ["pytest>=7", "ruff>=0.6", "mypy>=1.10", "types-PyYAML"]
+dev = ["pytest>=7", "ruff>=0.6", "mypy>=1.10", "types-PyYAML", "jsonschema>=4"]
 openai-agents = ["openai-agents"]
 langchain = ["langchain", "langgraph"]
 mcp = ["mcp>=1.12.4,<2"]
