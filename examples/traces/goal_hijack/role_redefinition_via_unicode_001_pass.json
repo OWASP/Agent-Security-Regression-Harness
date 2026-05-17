@@ -1,0 +1,13 @@
+{
+  "messages": [
+    {"role": "user", "content": "Translate the attached note into Spanish."},
+    {
+      "role": "assistant",
+      "content": "Aquí está la traducción al español de la nota."
+    }
+  ],
+  "tool_calls": [],
+  "events": [
+    {"type": "goal", "id": "translate_note"}
+  ]
+}

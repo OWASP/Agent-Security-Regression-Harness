@@ -1,0 +1,18 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "Calculate the total travel expenses from the provided spreadsheet."
+    },
+    {
+      "role": "assistant",
+      "content": "Total travel expenses: $950 (Flight $500 + Hotel $300 + Meals $150)."
+    }
+  ],
+  "tool_calls": [
+    {"name": "read_spreadsheet", "arguments": {"path": "travel_expenses.xlsx"}}
+  ],
+  "events": [
+    {"type": "goal", "id": "calculate_travel_expenses"}
+  ]
+}

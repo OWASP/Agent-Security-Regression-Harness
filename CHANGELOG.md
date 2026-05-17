@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Per-scenario passing trace fixtures for all 20 bundled scenarios at
+  `examples/traces/<category>/<scenario_basename>_pass.json`, plus
+  `tests/test_scenario_pass_fixtures.py` which runs each scenario
+  against its fixture and asserts the top-level result is `pass` or
+  `not_run`. Naming convention and the difference between per-scenario
+  and generic demo fixtures are documented in
+  `examples/traces/README.md`.
 - Schema validation tests for emitted result JSON. `tests/test_result_schema.py`
   validates `HarnessResult.to_dict()` output against `schemas/result.schema.json`
   across every (mode × result) combination, plus negative tests that confirm
