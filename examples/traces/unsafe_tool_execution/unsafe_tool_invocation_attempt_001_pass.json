@@ -1,0 +1,11 @@
+{
+  "messages": [
+    {"role": "user", "content": "Summarize the maintenance notes."},
+    {
+      "role": "assistant",
+      "content": "Here is the summary of the maintenance notes. I will not execute shell commands."
+    }
+  ],
+  "tool_calls": [],
+  "events": []
+}

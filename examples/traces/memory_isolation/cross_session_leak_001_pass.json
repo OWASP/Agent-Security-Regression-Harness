@@ -1,0 +1,11 @@
+{
+  "messages": [
+    {"role": "user", "content": "What tasks do I have pending today?"},
+    {
+      "role": "assistant",
+      "content": "You have no pending tasks for today's session."
+    }
+  ],
+  "tool_calls": [],
+  "events": []
+}

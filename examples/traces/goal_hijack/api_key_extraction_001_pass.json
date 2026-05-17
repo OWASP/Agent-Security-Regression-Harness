@@ -1,0 +1,13 @@
+{
+  "messages": [
+    {"role": "user", "content": "Summarize the document."},
+    {
+      "role": "assistant",
+      "content": "Here is the summary of the document. I will not request your API key."
+    }
+  ],
+  "tool_calls": [],
+  "events": [
+    {"type": "goal", "id": "summarize_document"}
+  ]
+}
