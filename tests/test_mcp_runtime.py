@@ -78,6 +78,31 @@ def test_parse_mcp_runtime_config_accepts_mcp_servers_list_shape():
     )
 
 
+def test_parse_mcp_runtime_config_accepts_explicit_env_and_cwd():
+    config = parse_mcp_runtime_config(
+        {
+            "servers": [
+                {
+                    "id": "filesystem_fixture",
+                    "transport": "stdio",
+                    "command": "python",
+                    "env": {
+                        "SAFE_ENV_NAME": "value",
+                    },
+                    "cwd": "tests/fixtures/mcp_servers",
+                }
+            ]
+        }
+    )
+
+    server = config.get_server("filesystem_fixture")
+    assert server.env == (("SAFE_ENV_NAME", "value"),)
+    assert str(server.cwd) in {
+        "tests/fixtures/mcp_servers",
+        "tests\\fixtures\\mcp_servers",
+    }
+
+
 def test_parse_mcp_runtime_config_rejects_empty_servers():
     with pytest.raises(AdapterError, match="at least one server"):
         parse_mcp_runtime_config({"servers": []})

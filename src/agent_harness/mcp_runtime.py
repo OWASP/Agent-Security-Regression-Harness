@@ -35,6 +35,8 @@ class MCPServerConfig:
     transport: str
     command: str
     args: tuple[str, ...] = ()
+    env: tuple[tuple[str, str], ...] = ()
+    cwd: Path | None = None
     timeout_seconds: float = DEFAULT_MCP_TIMEOUT_SECONDS
 
 
@@ -162,6 +164,8 @@ def _parse_server_config(
     transport = _parse_transport(label, entry)
     command = _parse_stdio_command(label, entry, transport)
     args = _parse_args(label, entry)
+    env = _parse_env(label, entry)
+    cwd = _parse_cwd(label, entry)
     timeout_seconds = _parse_timeout_seconds(label, entry)
 
     return MCPServerConfig(
@@ -169,6 +173,8 @@ def _parse_server_config(
         transport=transport,
         command=command,
         args=args,
+        env=env,
+        cwd=cwd,
         timeout_seconds=timeout_seconds,
     )
 
@@ -241,6 +247,38 @@ def _parse_args(label: str, entry: dict[str, Any]) -> tuple[str, ...]:
         normalized_args.append(arg)
 
     return tuple(normalized_args)
+
+
+def _parse_env(label: str, entry: dict[str, Any]) -> tuple[tuple[str, str], ...]:
+    env = entry.get("env", {})
+
+    if env is None:
+        return ()
+
+    if not isinstance(env, dict):
+        raise AdapterError(f"{label} env must be an object")
+
+    normalized_env = []
+    for name, value in env.items():
+        if not isinstance(name, str) or not name.strip():
+            raise AdapterError(f"{label} env names must be non-empty strings")
+        if not isinstance(value, str):
+            raise AdapterError(f"{label} env[{name!r}] must be a string")
+        normalized_env.append((name.strip(), value))
+
+    return tuple(normalized_env)
+
+
+def _parse_cwd(label: str, entry: dict[str, Any]) -> Path | None:
+    cwd = entry.get("cwd")
+
+    if cwd is None:
+        return None
+
+    if not isinstance(cwd, str) or not cwd.strip():
+        raise AdapterError(f"{label} cwd must be a non-empty string")
+
+    return Path(cwd.strip())
 
 
 def _parse_timeout_seconds(label: str, entry: dict[str, Any]) -> float:
