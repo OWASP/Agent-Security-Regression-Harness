@@ -1,18 +1,24 @@
 # CI with GitHub Actions
 
-When copied into `.github/workflows/security-regression.yml`, this workflow runs 
-on every push to `main` and on every pull request targeting
-`main`. It installs the harness, validates scenario files, runs assertions
-against pre-recorded traces, and explicitly checks the result JSON to fail
-the job if any regression was detected.
+This repository uses one CI workflow committed under `.github/workflows/`, with two jobs:
 
-## Where the example workflow lives
+| Workflow file | Job | Purpose |
+|--------------|-----|---------|
+| `tests.yml` | `test` | Run `pytest` on every push/PR to `main` |
+| `tests.yml` | `security-regression` | Validate scenarios and run trace-based harness checks |
 
-The example workflow is at:
+## What the committed workflow does
 
-```
-docs/examples/github-actions/security-regression.yml
-```
+The `security-regression` job in `.github/workflows/tests.yml`:
+
+1. Checks out the repository
+2. Sets up Python 3.11
+3. Installs the harness with `python -m pip install -e .`
+4. Creates the `results/` directory
+5. Runs trace-based harness checks against passing traces for representative scenarios (scenario validation is already covered by pytest)
+6. Dry-runs remaining scenarios that lack trace fixtures
+7. Reads every file in `results/` and exits 1 if any has `"result": "fail"` or `"result": "error"`
+8. Uploads result JSON files as artifacts (runs even on failure)
 
 ## How pass and fail actually work
 
@@ -21,12 +27,12 @@ docs/examples/github-actions/security-regression.yml
 or `error`.
 
 The workflow handles this by adding an explicit result-checking step after
-all the `agent-harness run` steps. It reads every JSON file in `results/`,
+all harness run steps. It reads every JSON file in `results/`,
 looks for `"result": "fail"` or `"result": "error"`, and calls `sys.exit(1)`
 if any are found. That is what actually fails the job.
 
 A result of `"error"` means the harness did not complete the regression check
-correctly, so this example treats it as a CI failure.
+correctly, so the workflow treats it as a CI failure.
 
 ```
 harness writes JSON → result-checking step reads JSON → step exits 1 → job fails
@@ -42,29 +48,17 @@ The basic goal-hijack scenario includes `no_secret_disclosure`, so you will
 see `not_run` in that result. This is expected. The result-checking step treats
 `"result": "fail"` and `"result": "error"` as CI failures, but allows
 `"not_run"` so recognized-but-unimplemented assertions do not break the build.
-The README documents which assertions are currently implemented.
 
 ## Run mode
 
-This workflow uses `--trace-file` mode. It evaluates assertions against a
-pre-recorded JSON trace without starting a live agent.
+The committed workflow uses `--trace-file` mode. It evaluates assertions against
+pre-recorded JSON traces without starting a live agent.
 
 That makes it a good fit for CI: no server to start, no API keys required,
 and the same input always produces the same result.
 
 To test against a live agent instead, see `--live` mode in the README. You
 would need an HTTP agent server running before the harness step fires.
-
-## What the workflow does
-
-1. Check out the repository
-2. Set up Python 3.11
-3. Install the harness with `python -m pip install -e .`
-4. Create the `results/` directory
-5. Validate each scenario file with `agent-harness validate`
-6. Run each scenario with `agent-harness run --trace-file ... --out results/....json`
-7. Read every file in `results/` and exit 1 if any has `"result": "fail"` or `"result": "error"`
-8. Upload result JSON files as artifacts (runs even when step 7 fails, because of `if: always()`)
 
 ## Viewing results
 
@@ -84,13 +78,19 @@ the evidence for any failure.
 
 ## Adapting this for your own project
 
-1. Copy `docs/examples/github-actions/security-regression.yml` into
-   `.github/workflows/security-regression.yml` in your repository
-2. Put your scenario files in a `scenarios/` directory
-3. Put your trace files in `examples/traces/`
-4. Update the `agent-harness validate` and `agent-harness run` commands to
-   point to your files
-5. Add one `agent-harness run` step per scenario
+The file at `docs/examples/github-actions/security-regression.yml` is a
+simpler reference workflow designed for copying into your own repository.
+
+Copy it and customize:
+
+```bash
+cp docs/examples/github-actions/security-regression.yml .github/workflows/
+```
+
+Then edit the file to:
+
+1. Point `agent-harness run --trace-file` commands at your trace files
+2. Add one `agent-harness run` step per scenario
 
 The result-checking step at the end works across however many scenarios you
 add. It globs `results/*.json`, so you do not need to update it when you add
@@ -98,12 +98,10 @@ new scenarios.
 
 ## Adding a new scenario
 
-When you write a new scenario, add two things to the workflow:
+When you add a scenario to this repository, add a matching trace file to
+`examples/traces/` and a new run step to `.github/workflows/tests.yml`:
 
 ```yaml
-- name: Validate my new scenario
-  run: agent-harness validate scenarios/my_category/my_scenario.yaml
-
 - name: Run my new scenario
   run: |
     agent-harness run scenarios/my_category/my_scenario.yaml \
