@@ -7,58 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- Release workflow at `.github/workflows/release.yml`. Pushing a tag
-  matching `v<major>.<minor>.<patch>` (or `…rc<N>`) runs the quality
-  gates on the tagged commit, builds sdist + wheel, publishes to PyPI
-  via trusted publishing (no long-lived token), and attaches the
-  artifacts to a GitHub release. The procedure for maintainers is
-  documented in `docs/releasing.md` (one-time PyPI setup, per-release
-  checklist, and rollback paths).
-- Per-scenario passing trace fixtures for all 20 bundled scenarios at
-  `examples/traces/<category>/<scenario_basename>_pass.json`, plus
-  `tests/test_scenario_pass_fixtures.py` which runs each scenario
-  against its fixture and asserts the top-level result is `pass` or
-  `not_run`. Naming convention and the difference between per-scenario
-  and generic demo fixtures are documented in
-  `examples/traces/README.md`.
-- Schema validation tests for emitted result JSON. `tests/test_result_schema.py`
-  validates `HarnessResult.to_dict()` output against `schemas/result.schema.json`
-  across every (mode × result) combination, plus negative tests that confirm
-  the schema actually rejects malformed shapes (invalid enums, extra
-  properties, missing required fields). Catches drift between the dataclass
-  and the schema in either direction. Adds `jsonschema>=4` to dev deps.
-- Cross-validation tests between the Python scenario validator and
-  `schemas/scenario.schema.json`. `tests/test_scenario_schema_sync.py`
-  validates every bundled scenario through both validators and pins
-  the documented asymmetries: schema is stricter on top-level structure
-  (`additionalProperties: false`, required `target.adapter`) while Python
-  is stricter on assertion-specific conditional rules (per-assertion
-  required fields, list-of-non-empty-strings shapes). The decision is
-  documented in `docs/scenario-spec.md` under "Validation: schema vs
-  Python validator".
-- `agent-harness run --exit-on-fail` exits with code 1 if the overall
-  result is `fail` or `error`. Default behaviour (exit 0 on every
-  successful run regardless of assertion outcomes) is unchanged.
-- Ruff (line-length 100, ruleset `E,F,I,UP,B`) and mypy added to dev
-  dependencies and configured in `pyproject.toml`. CI now has a `lint`
-  job that runs both, gating PRs on lint and type errors.
-- `concurrency:` block on `tests.yml` so superseded runs on the same
-  ref cancel automatically.
-
-### Changed
-
-- Whitespace and import-order cleanup driven by ruff across `src/` and
-  `tests/`. Behaviour unchanged.
-
-### Fixed
-
-- Type errors surfaced by mypy in `mcp_adapter.py` (missing
-  `server_id is not None` guard) and `mcp_host.py` (event-dict
-  inference); both were latent invariants the runtime relied on.
-
-## [0.1.0] — Unreleased
+## [0.1.0] — 2026-05-17
 
 First packaged release. Consolidates the v0.0.x development series into
 a usable OWASP Incubator baseline.
@@ -68,6 +17,9 @@ a usable OWASP Incubator baseline.
 - **CLI** (`agent-harness`) with `version`, `validate`, and `run` subcommands.
 - **Run modes** for `run`: `--dry-run`, `--trace-file`, `--live --target-url`,
   `--python-target`, `--openai-agent`, `--mcp-target`, `--langchain-target`.
+- **`--exit-on-fail` flag** on `agent-harness run` that exits with code 1 if
+  the overall result is `fail` or `error`. Default behaviour (exit 0 on every
+  successful run regardless of assertion outcomes) is unchanged.
 - **Scenario format** (YAML) with JSON Schema at
   `schemas/scenario.schema.json` and validation in
   `src/agent_harness/scenario.py`.
@@ -92,29 +44,52 @@ a usable OWASP Incubator baseline.
   - MCP stdio host runtime with full session lifecycle, output bounding,
     server-identity preservation, and rejection of forged MCP evidence from
     targets
-- **23 bundled scenarios** across 8 categories: `goal_hijack`,
+- **20 bundled scenarios** across 8 categories: `goal_hijack`,
   `prompt_injection`, `unsafe_tool_execution`, `sensitive_data_disclosure`,
   `privilege_escalation`, `memory_isolation`, `approval_bypass`,
-  `mcp_trust_boundary`.
+  `mcp_trust_boundary`. Each scenario ships with a per-scenario passing
+  trace fixture at `examples/traces/<category>/<name>_pass.json`.
 - **Demo targets** under `examples/targets/`: HTTP, vulnerable HTTP,
   hardened HTTP, Python callable, LangChain Runnable, MCP workflow.
-- **CI workflow** (`.github/workflows/tests.yml`) with a `test` job
-  (pytest) and a `security-regression` job (trace-based harness runs with
-  result-JSON gating and artifact upload).
+- **CI workflow** (`.github/workflows/tests.yml`) with three jobs:
+  `test` (pytest), `lint` (ruff + mypy), and `security-regression`
+  (trace-based harness runs with result-JSON gating and artifact upload).
+  Concurrency block cancels superseded runs on the same ref.
+- **Release workflow** (`.github/workflows/release.yml`). Pushing a tag
+  matching `v<major>.<minor>.<patch>` (or `…rc<N>`) runs the quality
+  gates on the tagged commit, builds sdist + wheel, publishes to PyPI
+  via trusted publishing (no long-lived token), and attaches the
+  artifacts to a GitHub release. Maintainer procedure is documented in
+  `docs/releasing.md`.
 - **Cookbook** at `docs/cookbook.md` with 7 runnable examples.
-- **Documentation**: `scenario-spec.md`, `trace-format.md`, `adapters.md`,
-  `architecture.md`, `scope.md`, `non-goals.md`, `mcp-adapter-design.md`,
-  `integrating-your-agent.md`, `ci-github-actions.md`, plus per-assertion
-  docs under `docs/assertions/`.
+- **Documentation**: `scenario-spec.md` (including a written decision
+  on the schema-vs-Python validation asymmetry), `trace-format.md`,
+  `adapters.md`, `architecture.md`, `scope.md`, `non-goals.md`,
+  `mcp-adapter-design.md`, `integrating-your-agent.md`,
+  `ci-github-actions.md`, `releasing.md`, plus per-assertion docs
+  under `docs/assertions/` and a fixture-layout README under
+  `examples/traces/`.
 - **Project hygiene**: `CONTRIBUTING.md` with an AI-assistance disclosure
   policy, `SECURITY.md`, `GOVERNANCE.md`, `AGENTS.md`, issue forms under
   `.github/ISSUE_TEMPLATE/`, `.github/CODEOWNERS`, and a PR template.
+- **Test infrastructure**: ruff (line-length 100, ruleset `E,F,I,UP,B`)
+  and mypy configured in `pyproject.toml` and gated in CI; schema
+  validation tests for emitted result JSON
+  (`tests/test_result_schema.py`); scenario/schema synchronization tests
+  (`tests/test_scenario_schema_sync.py`); and per-scenario passing
+  fixture tests (`tests/test_scenario_pass_fixtures.py`).
 
 ### Changed
 
 - `no_denied_tool_call` semantics extended: `expected.allowed_tools`, when
   present, acts as an allowlist for all observed tool calls in addition to
   the existing `denied_tools` denylist behavior.
+
+### Fixed
+
+- Type errors in `mcp_adapter.py` (missing `server_id is not None`
+  guard) and `mcp_host.py` (event-dict inference) surfaced by mypy.
+  Both were latent invariants the runtime relied on.
 
 ### Security
 
