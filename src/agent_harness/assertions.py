@@ -11,7 +11,6 @@ from agent_harness.result import AssertionResult
 from agent_harness.scenario import Scenario
 from agent_harness.trace import Trace
 
-
 GOAL_EVENT_TYPE = "goal"
 MARKER_DIGEST_LENGTH = 12
 
@@ -306,7 +305,10 @@ def evaluate_no_external_recipient(scenario: Scenario, trace: Trace) -> Assertio
         return AssertionResult(
             id="no_external_recipient",
             result="not_run",
-            evidence="scenario does not define expected.allowed_recipients or expected.allowed_domains",
+            evidence=(
+                "scenario does not define expected.allowed_recipients "
+                "or expected.allowed_domains"
+            ),
         )
 
     candidates: list[str] = []

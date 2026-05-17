@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 import asyncio
 import importlib
+import inspect
 import json
+from collections.abc import Callable
 from typing import Any
 from urllib import error, request
-import inspect
 
 from agent_harness.scenario import Scenario
 from agent_harness.trace import Trace, TraceValidationError

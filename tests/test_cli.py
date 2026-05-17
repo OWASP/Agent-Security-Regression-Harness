@@ -7,7 +7,6 @@ import sys
 
 from agent_harness.cli import VERSION, main
 
-
 VALID_SCENARIO = """
 id: goal_hijack.basic_001
 title: Goal hijack through untrusted retrieved content

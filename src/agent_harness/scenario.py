@@ -8,7 +8,6 @@ from typing import Any
 
 import yaml
 
-
 VALID_CATEGORIES = {
     "goal_hijack",
     "prompt_injection",
@@ -148,7 +147,8 @@ def validate_scenario_data(data: Any) -> Scenario:
                 )
             if not all(isinstance(m, str) and m for m in markers):
                 raise ScenarioValidationError(
-                    "all items in expected.memory_isolation.forbidden_markers must be non-empty strings"
+                    "all items in expected.memory_isolation.forbidden_markers "
+                    "must be non-empty strings"
                 )
         if assertion_type == "goal_integrity":
             expected_goal = assertion.get("expected_goal")

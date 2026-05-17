@@ -8,14 +8,14 @@ MCP tools through ``MCPHostContext`` without involving an LLM.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
-from contextlib import AsyncExitStack
-from copy import deepcopy
-from dataclasses import dataclass
 import importlib
 import inspect
 import json
 import threading
+from collections.abc import Awaitable, Callable
+from contextlib import AsyncExitStack
+from copy import deepcopy
+from dataclasses import dataclass
 from typing import Any
 
 from agent_harness.adapters import AdapterError
@@ -31,7 +31,6 @@ from agent_harness.mcp_runtime import (
 )
 from agent_harness.scenario import Scenario
 from agent_harness.trace import Trace
-
 
 MCPHostTargetResult = Trace | dict[str, Any]
 MCPHostTarget = Callable[
@@ -496,7 +495,10 @@ async def _invoke_mcp_host_target(
     if inspect.iscoroutinefunction(mcp_target):
         result = mcp_target(payload, context)
     else:
-        result = await asyncio.to_thread(mcp_target, payload, context)
+        # mcp_target may be a sync callable or a sync wrapper returning an
+        # awaitable; the post-call ``isawaitable`` check handles both. mypy
+        # cannot narrow this through to_thread, so cast away the union.
+        result = await asyncio.to_thread(mcp_target, payload, context)  # type: ignore[arg-type]
 
     if inspect.isawaitable(result):
         result = await result
@@ -527,7 +529,7 @@ def _load_mcp_sdk(
 
     stdio_server_parameters = getattr(mcp_module, "StdioServerParameters", None)
     if stdio_server_parameters is None:
-        stdio_server_parameters = getattr(stdio_module, "StdioServerParameters")
+        stdio_server_parameters = stdio_module.StdioServerParameters
 
     return _MCPSDK(
         ClientSession=client_session,
@@ -697,7 +699,7 @@ def _tools_discovered_event(
                 if isinstance(tool, dict) and "name" in tool
             ]
 
-    event = {
+    event: dict[str, Any] = {
         "type": "mcp_tools_discovered",
         "server_id": server_config.id,
         "tools": tools,
@@ -748,7 +750,7 @@ def _tool_names_from_list_tools_result(tools_result: Any) -> frozenset[str]:
             return frozenset()
         raw_tools = tools_data.get("tools", [])
 
-    if not isinstance(raw_tools, (list, tuple)):
+    if not isinstance(raw_tools, list | tuple):
         return frozenset()
 
     tool_names = []
@@ -917,7 +919,7 @@ def _object_to_jsonable(
     _depth: int = 0,
     _seen: set[int] | None = None,
 ) -> Any:
-    if value is None or isinstance(value, (int, float, bool)):
+    if value is None or isinstance(value, int | float | bool):
         return value
 
     if isinstance(value, str):
@@ -952,7 +954,7 @@ def _object_to_jsonable(
         finally:
             _seen.discard(value_id)
 
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, list | tuple):
         _seen.add(value_id)
         try:
             normalized_items = [

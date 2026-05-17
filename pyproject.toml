@@ -36,7 +36,7 @@ classifiers = [
 dependencies = ["PyYAML>=6.0.0"]
 
 [project.optional-dependencies]
-dev = ["pytest>=7"]
+dev = ["pytest>=7", "ruff>=0.6", "mypy>=1.10", "types-PyYAML"]
 openai-agents = ["openai-agents"]
 langchain = ["langchain", "langgraph"]
 mcp = ["mcp>=1.12.4,<2"]
@@ -58,4 +58,34 @@ agent_harness = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+  "E",  # pycodestyle
+  "F",  # pyflakes
+  "I",  # isort
+  "UP", # pyupgrade
+  "B",  # flake8-bugbear
+]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src/agent_harness"]
+warn_unused_ignores = true
+warn_redundant_casts = true
+
+[[tool.mypy.overrides]]
+# Optional adapter SDKs are imported lazily; missing stubs are expected.
+module = [
+  "agent_harness.langchain_adapter",
+  "agent_harness.mcp_adapter",
+  "agent_harness.mcp_host",
+  "agent_harness.mcp_runtime",
+  "agent_harness.openai_agents_adapter",
+]
+ignore_missing_imports = true
 

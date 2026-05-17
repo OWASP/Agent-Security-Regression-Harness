@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Ruff (line-length 100, ruleset `E,F,I,UP,B`) and mypy added to dev
+  dependencies and configured in `pyproject.toml`. CI now has a `lint`
+  job that runs both, gating PRs on lint and type errors.
+- `concurrency:` block on `tests.yml` so superseded runs on the same
+  ref cancel automatically.
+
+### Changed
+
+- Whitespace and import-order cleanup driven by ruff across `src/` and
+  `tests/`. Behaviour unchanged.
+
+### Fixed
+
+- Type errors surfaced by mypy in `mcp_adapter.py` (missing
+  `server_id is not None` guard) and `mcp_host.py` (event-dict
+  inference); both were latent invariants the runtime relied on.
+
 ## [0.1.0] — Unreleased
 
 First packaged release. Consolidates the v0.0.x development series into

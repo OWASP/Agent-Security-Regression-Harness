@@ -7,12 +7,11 @@ SDK is imported only when ``create_server`` or ``main`` is called.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 import os
-from pathlib import Path
 import stat
+from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
-
 
 ROOT_ENV_VAR = "MCP_FILESYSTEM_ROOT"
 ROOT_MARKER_FILE = ".mcp_fixture_root"

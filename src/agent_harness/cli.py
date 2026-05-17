@@ -19,7 +19,6 @@ from agent_harness.runner import (
 from agent_harness.scenario import ScenarioValidationError, load_scenario
 from agent_harness.trace import TraceValidationError, load_trace
 
-
 VERSION = "0.0.1"
 
 

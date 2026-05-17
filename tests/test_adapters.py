@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from test_assertions import make_scenario
 
 from agent_harness.adapters import (
     AdapterError,
@@ -10,7 +11,6 @@ from agent_harness.adapters import (
     run_python_callable_target,
 )
 from agent_harness.trace import Trace
-from test_assertions import make_scenario
 
 
 def write_fake_target_module(tmp_path, monkeypatch) -> str:

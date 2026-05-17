@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-from agent_harness.adapters import AdapterError
 from agent_harness import mcp_host
+from agent_harness.adapters import AdapterError
 from agent_harness.mcp_adapter import canonical_mcp_tool_name
 from agent_harness.mcp_host import (
     async_run_mcp_host_target,
@@ -20,7 +20,6 @@ from agent_harness.mcp_host import (
 )
 from agent_harness.mcp_runtime import MCP_INSTALL_HINT, parse_mcp_runtime_config
 from agent_harness.scenario import validate_scenario_data
-
 
 CANONICAL_DELETE_FILE_TOOL = canonical_mcp_tool_name(
     "filesystem_fixture",

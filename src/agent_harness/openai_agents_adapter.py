@@ -10,7 +10,6 @@ from agent_harness.adapters import AdapterError, build_target_payload
 from agent_harness.scenario import Scenario
 from agent_harness.trace import Trace, TraceValidationError
 
-
 OPENAI_AGENTS_INSTALL_MESSAGE = (
     "OpenAI Agents SDK adapter dependencies are not installed. "
     'Install them with: python -m pip install "'
@@ -31,7 +30,7 @@ def build_openai_agents_input(scenario: Scenario) -> str:
 def _load_default_runner() -> Any:
     """Load the OpenAI Agents SDK Runner lazily."""
     try:
-        agents_module = importlib.import_module("agents")  # type: ignore[import-not-found]
+        agents_module = importlib.import_module("agents")
     except ImportError as exc:
         raise AdapterError(OPENAI_AGENTS_INSTALL_MESSAGE) from exc
 

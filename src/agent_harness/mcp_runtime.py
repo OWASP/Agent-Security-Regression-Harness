@@ -7,16 +7,15 @@ MCP SDK dependency optional and lazily imported.
 
 from __future__ import annotations
 
+import importlib
 from collections.abc import Callable
 from dataclasses import dataclass
-import importlib
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 from agent_harness.adapters import AdapterError
-
 
 DEFAULT_MCP_TIMEOUT_SECONDS = 5.0
 SUPPORTED_MCP_TRANSPORTS = frozenset({"stdio"})
@@ -286,7 +285,7 @@ def _parse_timeout_seconds(label: str, entry: dict[str, Any]) -> float:
 
     if isinstance(timeout_seconds, bool) or not isinstance(
         timeout_seconds,
-        (int, float),
+        int | float,
     ):
         raise AdapterError(f"{label} timeout_seconds must be a number")
 

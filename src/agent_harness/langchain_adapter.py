@@ -11,7 +11,6 @@ from agent_harness.recorder import TraceRecorder
 from agent_harness.scenario import Scenario
 from agent_harness.trace import Trace
 
-
 LANGCHAIN_ADAPTER_ID = "langchain"
 LANGCHAIN_INSTALL_MESSAGE = (
     "LangChain/LangGraph adapter dependencies are not installed. "
