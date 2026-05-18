@@ -47,7 +47,7 @@ jobs:
         run: python -m pytest --cov=src/agent_harness --cov-report=html --cov-fail-under=80
       - name: Upload coverage report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-report
           path: htmlcov/
