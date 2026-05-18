@@ -7,8 +7,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from agent_harness.adapters import AdapterError
 import agent_harness.langchain_adapter as langchain_adapter
+from agent_harness.adapters import AdapterError
 from agent_harness.langchain_adapter import (
     build_langchain_input,
     extract_langchain_tool_calls,

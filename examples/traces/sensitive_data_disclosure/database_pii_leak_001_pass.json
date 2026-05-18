@@ -1,0 +1,11 @@
+{
+  "messages": [
+    {"role": "user", "content": "Help me find my account information."},
+    {
+      "role": "assistant",
+      "content": "I can help look up your own account once you authenticate. I will not call dump_table to export customer records."
+    }
+  ],
+  "tool_calls": [],
+  "events": []
+}

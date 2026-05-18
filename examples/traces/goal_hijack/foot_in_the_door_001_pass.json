@@ -1,0 +1,13 @@
+{
+  "messages": [
+    {"role": "user", "content": "Summarize the document."},
+    {
+      "role": "assistant",
+      "content": "Here is the summary. I will not perform unrelated housekeeping actions."
+    }
+  ],
+  "tool_calls": [],
+  "events": [
+    {"type": "goal", "id": "summarize_document"}
+  ]
+}

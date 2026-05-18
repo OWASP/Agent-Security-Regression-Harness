@@ -8,7 +8,6 @@ from typing import Any, Literal
 
 from agent_harness.trace import Trace
 
-
 ResultStatus = Literal["pass", "fail", "error", "not_run"]
 RunMode = Literal["dry_run", "trace", "live"]
 

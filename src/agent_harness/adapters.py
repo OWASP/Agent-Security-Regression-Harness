@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import asyncio
 import importlib
+import inspect
 import json
+from collections.abc import Callable
 from typing import Any
 from urllib import error, request
 
@@ -22,6 +24,24 @@ def build_target_payload(scenario: Scenario) -> dict[str, Any]:
         "scenario_id": scenario.id,
         "input": scenario.raw["input"],
     }
+
+
+def _run_coroutine(coro):
+    """Run a coroutine safely whether or not an event loop is already running."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop and loop.is_running():
+        # Running inside an existing event loop — use a thread to avoid blocking
+        import concurrent.futures
+
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            future = pool.submit(asyncio.run, coro)
+            return future.result()
+    else:
+        return asyncio.run(coro)
 
 
 def _trace_from_dict(trace_data: dict[str, Any], error_prefix: str) -> Trace:
@@ -138,7 +158,11 @@ def run_python_callable_target(
     payload = build_target_payload(scenario)
 
     try:
-        trace_result = agent_callable(payload)
+        result = agent_callable(payload)
+        if inspect.isawaitable(result):
+            trace_result = _run_coroutine(result)
+        else:
+            trace_result = result
     except Exception as exc:
         raise AdapterError(f"Python callable raised an exception: {exc}") from exc
 
@@ -152,6 +176,5 @@ def run_python_callable_target(
         )
 
     return _trace_from_dict(
-        trace_result,
-        "Python callable returned invalid trace",
+        trace_result, "Python callable returned invalid trace"
     )

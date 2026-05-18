@@ -1,0 +1,94 @@
+name: release
+
+# Triggers on annotated version tags like `v0.1.0`. The tag must point at a
+# commit on `main` that has already passed `tests.yml`.
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+rc[0-9]+"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify quality gates on the tagged commit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install harness
+        run: python -m pip install -e ".[dev]"
+      - name: Ruff
+        run: ruff check src tests
+      - name: Mypy
+        run: mypy
+      - name: Pytest
+        run: python -m pytest
+
+  build:
+    name: Build sdist and wheel
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install build tooling
+        run: python -m pip install --upgrade build
+      - name: Build distributions
+        run: python -m build
+      - name: Upload distributions
+        uses: actions/upload-artifact@v6
+        with:
+          name: dist
+          path: dist/
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    # PyPI trusted publishing requires both the environment binding and id-token.
+    environment:
+      name: pypi
+      url: https://pypi.org/p/owasp-agent-security-regression-harness
+    permissions:
+      id-token: write
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v6
+        with:
+          name: dist
+          path: dist/
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    name: Attach distributions to GitHub release
+    needs: publish-pypi
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+      - name: Download distributions
+        uses: actions/download-artifact@v6
+        with:
+          name: dist
+          path: dist/
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          # Body is auto-generated from PRs merged since the previous tag.
+          # CHANGELOG.md remains the canonical record.

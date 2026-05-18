@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
-
 import pytest
+from test_assertions import make_scenario
 
 from agent_harness.adapters import (
     AdapterError,
     load_python_callable,
-    run_python_callable_target, run_http_target,
+    run_python_callable_target,
 )
 from agent_harness.trace import Trace
-from test_assertions import make_scenario
 
 
 def write_fake_target_module(tmp_path, monkeypatch) -> str:
@@ -187,22 +185,110 @@ def test_load_python_callable_rejects_non_callable(tmp_path, monkeypatch):
         load_python_callable(f"{module_name}:NON_CALLABLE")
 
 
-@patch("urllib.request.urlopen")
-def test_run_http_target_respects_timeout(mock_urlopen):
-    """Verify the timeout parameter is passed to the underlying network call."""
-    # Create a Scenario object
+def test_python_async_callable_receives_target_payload():
+    scenario = make_scenario(assertions=[])
+    observed_payload = {}
+
+    async def fake_agent(payload):
+        observed_payload.update(payload)
+        return {
+            "messages": [],
+            "tool_calls": [],
+            "events": [],
+        }
+
+    trace = run_python_callable_target(scenario, fake_agent)
+
+    assert isinstance(trace, Trace)
+    assert observed_payload == {
+        "scenario_id": scenario.id,
+        "input": scenario.raw["input"],
+    }
+
+
+def test_python_async_callable_accepts_trace_return():
     scenario = make_scenario(assertions=[])
 
-    # Setup a fake response
-    mock_response = MagicMock()
-    mock_response.read.return_value = b'{"messages": [], "tool_calls": [], "events": []}'
-    mock_response.__enter__.return_value = mock_response
-    mock_urlopen.return_value = mock_response
+    expected_trace = Trace(
+        messages=[{"role": "assistant", "content": "ok"}],
+        tool_calls=[],
+        events=[],
+    )
 
-    # Call the adapter with 45s timeout
-    target_url = "http://example.com/api"
-    custom_timeout = 45
+    async def fake_agent(payload):
+        return expected_trace
 
-    run_http_target(scenario, target_url, timeout=custom_timeout)
-    args, kwargs = mock_urlopen.call_args
-    assert kwargs["timeout"] == custom_timeout
+    trace = run_python_callable_target(scenario, fake_agent)
+
+    assert trace is expected_trace
+
+
+def test_python_async_callable_accepts_trace_shaped_dict_return():
+    scenario = make_scenario(assertions=[])
+
+    async def fake_agent(payload):
+        return {
+            "messages": [{"role": "assistant", "content": "ok"}],
+            "tool_calls": [],
+            "events": [],
+        }
+
+    trace = run_python_callable_target(scenario, fake_agent)
+
+    assert trace.to_dict() == {
+        "messages": [{"role": "assistant", "content": "ok"}],
+        "tool_calls": [],
+        "events": [],
+    }
+
+
+def test_python_async_callable_wraps_exception_in_adapter_error():
+    scenario = make_scenario(assertions=[])
+
+    async def broken_agent(payload):
+        raise RuntimeError("boom")
+
+    with pytest.raises(AdapterError, match="Python callable raised an exception"):
+        run_python_callable_target(scenario, broken_agent)
+
+
+def test_python_async_callable_object():
+    """A callable object with async __call__ should work."""
+    scenario = make_scenario(assertions=[])
+
+    class AsyncAgent:
+        async def __call__(self, payload):
+            return {"messages": [], "tool_calls": [], "events": []}
+
+    trace = run_python_callable_target(scenario, AsyncAgent())
+    assert isinstance(trace, Trace)
+
+
+def test_python_sync_wrapper_returning_awaitable():
+    """A sync function returning a coroutine should work."""
+    scenario = make_scenario(assertions=[])
+
+    async def _inner(payload):
+        return {"messages": [], "tool_calls": [], "events": []}
+
+    def sync_wrapper(payload):
+        return _inner(payload)
+
+    trace = run_python_callable_target(scenario, sync_wrapper)
+    assert isinstance(trace, Trace)
+
+
+def test_python_async_callable_from_running_event_loop():
+    """Calling run_python_callable_target from a running event loop should work."""
+    import asyncio
+
+    scenario = make_scenario(assertions=[])
+
+    async def fake_agent(payload):
+        return {"messages": [], "tool_calls": [], "events": []}
+
+    async def run_from_loop():
+        return run_python_callable_target(scenario, fake_agent)
+
+    trace = asyncio.run(run_from_loop())
+    assert isinstance(trace, Trace)

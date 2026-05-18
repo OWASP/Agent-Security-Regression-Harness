@@ -1,0 +1,58 @@
+name: Feature request
+description: Propose a new feature or enhancement.
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before opening a feature request, please skim
+        [docs/scope.md](../blob/main/docs/scope.md) and
+        [docs/non-goals.md](../blob/main/docs/non-goals.md). The harness is
+        intentionally narrow — features that broaden it into a generic
+        evaluation platform are likely to be declined.
+
+        For new **scenarios** (not framework features), please use the
+        scenario request template instead.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What can't you do today, or what would be hard to do well?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed solution
+      description: How would this feature work? CLI changes, new modules, etc.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you considered, including doing nothing.
+    validations:
+      required: false
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: |
+        What's explicitly in scope for this issue, and what's out of scope
+        (e.g. handled in a separate follow-up)?
+    validations:
+      required: false
+
+  - type: input
+    id: related
+    attributes:
+      label: Related issues or PRs
+      placeholder: "#NN, #MM"
+    validations:
+      required: false

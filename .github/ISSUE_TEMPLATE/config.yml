@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and discussions
+    url: https://github.com/OWASP/Agent-Security-Regression-Harness/discussions
+    about: Ask questions, propose ideas, or discuss approaches before opening an issue.
+  - name: Security reports
+    url: https://github.com/OWASP/Agent-Security-Regression-Harness/blob/main/SECURITY.md
+    about: Do NOT report security vulnerabilities through public issues. See SECURITY.md.

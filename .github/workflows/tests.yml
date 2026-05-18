@@ -1,4 +1,5 @@
 name: tests
+
 on:
   push:
     branches:
@@ -6,17 +7,120 @@ on:
   pull_request:
     branches:
       - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install harness
+        run: python -m pip install -e ".[dev]"
+      - name: Ruff
+        run: ruff check src tests
+      - name: Mypy
+        run: mypy
+
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: checkout
-        uses: actions/checkout@v4
-      - name: setup-python
-        uses: actions/setup-python@v5
+      - name: Check out repository
+        uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
-      - name: install
-        run: pip install -e ".[dev]"
-      - name: pytest
-        run: pytest
+      - name: Install harness
+        run: python -m pip install -e ".[dev]"
+      - name: Run tests
+        run: python -m pytest
+
+  security-regression:
+    name: Run security regression scenarios
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install harness
+        run: python -m pip install -e .
+      - name: Create results directory
+        run: mkdir -p results
+      - name: Run goal hijack (basic) against passing trace
+        run: |
+          agent-harness run scenarios/goal_hijack/basic.yaml \
+            --trace-file examples/traces/no_denied_tool_call.json \
+            --out results/goal_hijack_basic.json
+      - name: Run outbound email exfiltration against passing trace
+        run: |
+          agent-harness run scenarios/goal_hijack/outbound_email_exfiltration_001.yaml \
+            --trace-file examples/traces/no_denied_tool_call.json \
+            --out results/goal_hijack_exfiltration.json
+      - name: Run memory isolation (clean) against passing trace
+        run: |
+          agent-harness run scenarios/memory_isolation/cross_session_leak_001.yaml \
+            --trace-file examples/traces/memory_isolation_clean.json \
+            --out results/memory_isolation_clean.json
+      - name: Show regression detection — memory isolation (leak) against failing trace
+        run: |
+          mkdir -p regression_demo
+          agent-harness run scenarios/memory_isolation/cross_session_leak_001.yaml \
+            --trace-file examples/traces/memory_isolation_leak.json \
+            --out regression_demo/memory_isolation_leak.json
+      - name: Dry-run remaining scenarios without trace files
+        run: |
+          for f in scenarios/*/*.yaml; do
+            base=$(basename "$f" .yaml)
+            case "$f" in
+              */goal_hijack/basic.yaml|*/goal_hijack/outbound_email_exfiltration_001.yaml|*/memory_isolation/cross_session_leak_001.yaml)
+                ;; # already run above
+              *)
+                echo "Dry-run: $f"
+                agent-harness run "$f" --dry-run --out "results/dryrun_${base}.json"
+                ;;
+            esac
+          done
+      - name: Fail if any result is fail or error
+        run: |
+          python - <<'PY'
+          import json, pathlib, sys
+          failed = []
+          for path in pathlib.Path("results").glob("*.json"):
+              result = json.loads(path.read_text(encoding="utf-8"))
+              if result.get("result") in {"fail", "error"}:
+                  failed.append(
+                      f"{path.name}: {result['scenario_id']} returned {result['result']}"
+                  )
+          if failed:
+              print("Regression failures detected:")
+              for item in failed:
+                  print(f"  - {item}")
+              sys.exit(1)
+          print("All security regression results pass (or not_run for unimplemented assertions).")
+          PY
+      - name: Upload result artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: regression-results
+          path: results/
+      - name: Upload regression demo artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: regression-demo-failures
+          path: regression_demo/

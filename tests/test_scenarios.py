@@ -81,3 +81,23 @@ def test_other_assertion_types_do_not_require_expected_goal():
     assert scenario.id == "goal-hijack-basic"
 
 
+def test_expected_allowed_tools_must_be_a_list():
+    data = _minimal_scenario([{"type": "no_denied_tool_call"}])
+    data["expected"] = {"allowed_tools": "read_file"}
+
+    with pytest.raises(
+        ScenarioValidationError,
+        match="expected.allowed_tools must be a list",
+    ):
+        validate_scenario_data(data)
+
+
+def test_expected_allowed_tools_items_must_be_non_empty_strings():
+    data = _minimal_scenario([{"type": "no_denied_tool_call"}])
+    data["expected"] = {"allowed_tools": ["read_file", ""]}
+
+    with pytest.raises(
+        ScenarioValidationError,
+        match="expected.allowed_tools",
+    ):
+        validate_scenario_data(data)

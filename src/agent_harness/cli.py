@@ -19,8 +19,7 @@ from agent_harness.runner import (
 from agent_harness.scenario import ScenarioValidationError, load_scenario
 from agent_harness.trace import TraceValidationError, load_trace
 
-
-VERSION = "0.0.1"
+VERSION = "0.1.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -116,10 +115,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional max_turns value passed to the OpenAI Agents SDK runner.",
     )
     run_parser.add_argument(
-        "--target-timeout",
-        type=int,
-        default=30,
-        help="Timeout in seconds for HTTP requests (default: 30)"
+        "--exit-on-fail",
+        action="store_true",
+        help=(
+            "Exit with code 1 if the overall result is 'fail' or 'error'. "
+            "Useful for gating CI on assertion failures. Without this flag, "
+            "'agent-harness run' always exits 0 on successful runs regardless "
+            "of assertion outcomes."
+        ),
     )
 
     return parser
@@ -173,13 +176,6 @@ def main() -> int:
         if args.langchain_goal_event is not None and args.langchain_target is None:
             parser.error("--langchain-goal-event can only be used with --langchain-target")
 
-        #Timer compute
-        if args.target_timeout <= 0:
-            parser.error("--target-timeout must be greater than zero")
-
-        if args.target_timeout != 30 and not args.live:
-            parser.error("--target-timeout can only be used with --live")
-
         if (
             args.langchain_goal_event is not None
             and not args.langchain_goal_event.strip()
@@ -200,11 +196,10 @@ def main() -> int:
 
         if args.dry_run:
             result = dry_run_scenario(scenario)
-
         elif args.live:
             try:
                 assert args.target_url is not None
-                result = run_scenario_live(scenario, args.target_url, timeout=args.target_timeout)
+                result = run_scenario_live(scenario, args.target_url)
             except AdapterError as exc:
                 print(f"adapter error: {exc}", file=sys.stderr)
                 return 1
@@ -260,6 +255,9 @@ def main() -> int:
             Path(args.out).write_text(result_json + "\n", encoding="utf-8")
         else:
             print(result_json)
+
+        if args.exit_on_fail and result.result in {"fail", "error"}:
+            return 1
 
         return 0
 

@@ -32,7 +32,8 @@ Large, unfocused additions will be rejected. This project is intentionally narro
 2. Create a feature branch
 3. Make a small, reviewable change
 4. Add or update tests where applicable
-5. Open a pull request
+5. Update `CHANGELOG.md` under `[Unreleased]` if the change is user-visible
+6. Open a pull request
 
 Use clear branch names:
 
@@ -42,6 +43,22 @@ docs/scenario-spec
 feature/http-agent-adapter
 fix/result-json-output
 ```
+
+## Changelog
+
+This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
+and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+If your pull request makes a user-visible change — a new feature, a behavior
+change, a bug fix, a deprecation, a removal, or a security fix — add an entry
+under `## [Unreleased]` in `CHANGELOG.md` using the appropriate subsection
+(`Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`). Pure
+refactors, internal-only test changes, and CI-only changes do not need an
+entry.
+
+Maintainers move `[Unreleased]` entries into a versioned section as part of
+the release process; see [`docs/releasing.md`](docs/releasing.md) for the
+full procedure.
 
 ## AI-assisted contributions
 

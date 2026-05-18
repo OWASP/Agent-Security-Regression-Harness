@@ -1,0 +1,89 @@
+name: Bug report
+description: Report a bug in the harness.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. Please fill out the fields
+        below so we can reproduce the issue.
+
+        If you think this is a security vulnerability rather than a bug,
+        please follow [SECURITY.md](../blob/main/SECURITY.md) instead of
+        opening a public issue.
+
+  - type: input
+    id: harness-version
+    attributes:
+      label: Harness version
+      description: Output of `agent-harness version`.
+      placeholder: "agent-harness 0.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Python version
+      description: Output of `python --version`.
+      placeholder: "Python 3.11.x"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: Install method
+      options:
+        - "pip install -e . (editable)"
+        - "pip install ."
+        - "pip install owasp-agent-security-regression-harness"
+        - Other (describe in repro steps)
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "Ubuntu 22.04 / macOS 14 / Windows 11"
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: Minimal commands or code to reproduce the bug.
+      placeholder: |
+        1. Run `agent-harness ...`
+        2. ...
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: |
+        Paste any error output or unexpected result JSON here. If you include
+        a trace snippet, **redact secrets first** — the harness scans for
+        `forbidden_markers` precisely because traces routinely capture
+        sensitive content.
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Logs, stack traces, related issues, etc. Optional.

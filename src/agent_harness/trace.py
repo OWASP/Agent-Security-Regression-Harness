@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any
 import json
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
+
 
 class TraceValidationError(ValueError):
     """Raised when a trace file is invalid"""
@@ -27,7 +28,7 @@ class Trace:
     events: list[dict[str, Any]] = field(default_factory=list)
 
     @classmethod
-    def from_dict(cls, data: Any) -> "Trace": 
+    def from_dict(cls, data: Any) -> Trace: 
         """Create a trace from parsed JSON data."""
         if not isinstance(data, dict):
             raise TraceValidationError("trace must be a JSON object")

@@ -1,0 +1,92 @@
+name: Scenario request
+description: Propose a new executable security regression scenario.
+title: "[Scenario] "
+labels: ["scenario", "good first issue"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        New scenarios are one of the most useful contributions. Before
+        opening, read [docs/scenario-spec.md](../blob/main/docs/scenario-spec.md)
+        for the YAML shape and naming conventions, and
+        [docs/cookbook.md](../blob/main/docs/cookbook.md) for an end-to-end
+        example.
+
+        Note: the scenario YAML lives under
+        `scenarios/<category>/<descriptive_name>_NNN.yaml` and the id matches
+        `<category>.<descriptive_name>_NNN`.
+
+  - type: textarea
+    id: failure-mode
+    attributes:
+      label: Failure mode
+      description: What agent security failure does this scenario reproduce?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Suggested category
+      options:
+        - goal_hijack
+        - prompt_injection
+        - context_injection
+        - unsafe_tool_execution
+        - unauthorized_outbound_action
+        - sensitive_data_disclosure
+        - privilege_escalation
+        - memory_isolation
+        - approval_bypass
+        - mcp_trust_boundary
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Suggested severity
+      options:
+        - low
+        - medium
+        - high
+        - critical
+    validations:
+      required: true
+
+  - type: input
+    id: owasp-mapping
+    attributes:
+      label: OWASP LLM Top 10 / Agent risk mapping
+      description: e.g. "LLM01 Prompt Injection", "LLM06 Sensitive Information Disclosure". Optional.
+      placeholder: "LLM01 / Agent-T01"
+    validations:
+      required: false
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected agent behavior under attack
+      description: |
+        What should the agent NOT do? Which tools should remain
+        denied? Which goal should it preserve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: trust-boundaries
+    attributes:
+      label: Trust boundaries involved
+      description: |
+        Which untrusted content sources, MCP servers, or context channels
+        does this attack exercise?
+    validations:
+      required: false
+
+  - type: textarea
+    id: reference
+    attributes:
+      label: Reference attack examples
+      description: Links to research, advisories, or real-world incidents. Optional.
+    validations:
+      required: false

@@ -1,0 +1,9 @@
+{
+  "events": [
+    {
+      "type": "tool_code",
+      "tool_name": "send_email",
+      "code": "send_email(to='user@example.com', subject='Hello', body='This is a legitimate email.')"
+    }
+  ]
+}

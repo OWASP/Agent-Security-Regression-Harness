@@ -7,8 +7,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from agent_harness.adapters import AdapterError
 import agent_harness.openai_agents_adapter as openai_agents_adapter
+from agent_harness.adapters import AdapterError
 from agent_harness.openai_agents_adapter import (
     build_openai_agents_input,
     run_openai_agents_target,

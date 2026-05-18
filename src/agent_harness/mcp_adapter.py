@@ -7,15 +7,14 @@ MCP tool calls into the harness Trace format.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from copy import deepcopy
-import json
 from typing import Any
 
 from agent_harness.adapters import AdapterError, build_target_payload
 from agent_harness.scenario import Scenario
 from agent_harness.trace import Trace, TraceValidationError
-
 
 MCP_ADAPTER_ID = "mcp"
 MCP_TOOL_NAME_PREFIX = "mcp"
@@ -189,6 +188,7 @@ def normalize_mcp_event(
         )
     elif event_type == "mcp_tool_result":
         assert tool_name is not None
+        assert server_id is not None
         tool_name = _normalize_name_part(tool_name, "MCP tool name")
         normalized["mcp_tool_name"] = tool_name
         normalized["name"] = canonical_mcp_tool_name(server_id, tool_name)

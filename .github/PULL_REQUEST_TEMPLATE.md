@@ -28,3 +28,4 @@ Fixes #
 - [ ] I have considered potential edge cases and how my code handles them
 - [ ] If it is a core feature, I have added thorough tests
 - [ ] My code follows the project's style guidelines and conventions
+- [ ] I added an entry under `[Unreleased]` in `CHANGELOG.md` (or this PR does not need one — pure refactor, internal tests, or CI-only change)

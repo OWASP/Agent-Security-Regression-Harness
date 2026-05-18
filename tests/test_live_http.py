@@ -13,7 +13,6 @@ import pytest
 
 from agent_harness.cli import main
 
-
 LIVE_HTTP_SCENARIO = """
 id: prompt_injection.live_http_success_001
 title: Live HTTP adapter success path

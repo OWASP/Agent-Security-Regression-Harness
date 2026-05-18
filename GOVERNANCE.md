@@ -41,4 +41,4 @@ The project goal is to provide executable security regression tests, not a gener
 
 Early releases will use `v0.x` versioning until the CLI, scenario format, and output format are stable enough for wider usage.
 
-The first target release is `v0.0.1`, focused on a minimal runnable harness.
+The current target release is `v0.1.0`, the first packaged Incubator baseline. See [ROADMAP.md](ROADMAP.md) for milestone scope.

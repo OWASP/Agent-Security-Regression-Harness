@@ -1,0 +1,9 @@
+# Code owners for the OWASP Agent Security Regression Harness.
+#
+# When a PR touches a path listed here, the matching owner is automatically
+# requested for review. The last matching pattern wins.
+#
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-security/customizing-your-repository/about-code-owners
+
+# Default owner for everything in the repo.
+* @mertsatilmaz
