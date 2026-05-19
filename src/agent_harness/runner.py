@@ -59,9 +59,10 @@ def run_scenario_with_trace(scenario: Scenario, trace: Trace) -> HarnessResult:
     )
 
 
-def run_scenario_live(scenario: Scenario, target_url: str) -> HarnessResult:
+def run_scenario_live(scenario: Scenario, target_url: str, timeout: int = 30) -> HarnessResult:
     """Run a scenario against a live HTTP target."""
-    trace = run_http_target(scenario, target_url)
+    # Pass the timeout into the helper function
+    trace = run_http_target(scenario, target_url, timeout=timeout)
     assertion_results = evaluate_assertions(scenario, trace)
     top_level_result = aggregate_assertion_results(assertion_results)
 

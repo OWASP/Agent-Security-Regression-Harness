@@ -862,3 +862,28 @@ def test_run_langchain_target_returns_adapter_error_for_bad_import(
     assert captured.out == ""
     assert "adapter error:" in captured.err
     assert "Could not import LangChain/LangGraph target module" in captured.err
+
+#New testcase to test the timeout
+def test_run_live_accepts_timeout_flag(capsys, monkeypatch, tmp_path):
+    scenario_file = tmp_path / "scenario.yaml"
+    scenario_file.write_text(VALID_SCENARIO, encoding="utf-8")
+
+    # This ensures the CLI doesn't crash when the flag is provided
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agent-harness",
+            "run",
+            str(scenario_file),
+            "--live",
+            "--target-url",
+            "http://127.0.0.1:1/run",
+            "--target-timeout",
+            "45",
+        ],
+    )
+
+    exit_code = main()
+    # Even if it fails to connect, we want to see it didn't fail on arg parsing
+    assert exit_code == 1
