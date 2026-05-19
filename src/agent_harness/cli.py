@@ -78,6 +78,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="HTTP URL for the live target.",
     )
     run_parser.add_argument(
+        "--target-timeout",
+        type=int,
+        default=30,
+        help="Timeout in seconds for live HTTP target requests (default: 30).",
+    )
+    run_parser.add_argument(
         "--python-target",
         help=(
             "Run the scenario against a local Python callable target in "
@@ -170,6 +176,9 @@ def main() -> int:
         if args.target_url and not args.live:
             parser.error("--target-url can only be used with --live")
 
+        if args.target_timeout is not None and args.target_timeout <= 0:
+            parser.error("--target-timeout must be greater than zero")
+
         if args.openai_agent_max_turns is not None and args.openai_agent is None:
             parser.error("--openai-agent-max-turns can only be used with --openai-agent")
 
@@ -199,7 +208,7 @@ def main() -> int:
         elif args.live:
             try:
                 assert args.target_url is not None
-                result = run_scenario_live(scenario, args.target_url)
+                result = run_scenario_live(scenario, args.target_url, timeout=args.target_timeout)
             except AdapterError as exc:
                 print(f"adapter error: {exc}", file=sys.stderr)
                 return 1

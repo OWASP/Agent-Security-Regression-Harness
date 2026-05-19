@@ -114,7 +114,7 @@ def load_python_callable(
     return target
 
 
-def run_http_target(scenario: Scenario, target_url: str) -> Trace:
+def run_http_target(scenario: Scenario, target_url: str, timeout: int = 30) -> Trace:
     """Run a scenario against an HTTP target and return its trace."""
     body = build_target_payload(scenario)
     request_data = json.dumps(body).encode("utf-8")
@@ -129,12 +129,15 @@ def run_http_target(scenario: Scenario, target_url: str) -> Trace:
     )
 
     try:
-        with request.urlopen(http_request, timeout=30) as response:
+        with request.urlopen(http_request, timeout=timeout) as response:
             response_text = response.read().decode("utf-8")
     except error.URLError as exc:
+        if isinstance(exc.reason, TimeoutError) or "timed out" in str(exc.reason):
+             raise AdapterError(f"HTTP target request timed out after {timeout} seconds") from exc
         raise AdapterError(f"HTTP target request failed: {exc}") from exc
 
     try:
+        # DON'T FORGET THIS LINE:
         trace_data = json.loads(response_text)
     except json.JSONDecodeError as exc:
         raise AdapterError(f"HTTP target returned invalid JSON: {exc}") from exc

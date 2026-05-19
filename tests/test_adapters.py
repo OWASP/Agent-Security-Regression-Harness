@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 from test_assertions import make_scenario
 
@@ -292,3 +294,28 @@ def test_python_async_callable_from_running_event_loop():
 
     trace = asyncio.run(run_from_loop())
     assert isinstance(trace, Trace)
+
+
+@patch("urllib.request.urlopen")
+def test_run_http_target_respects_timeout(mock_urlopen):
+    """Verify the timeout parameter is passed to the underlying network call."""
+    from agent_harness.adapters import run_http_target
+
+    #Create a real Scenario object
+    scenario = make_scenario(assertions=[])
+
+    #Setup a mock response to satisfy the JSON parsing step
+    mock_response = MagicMock()
+    mock_response.read.return_value = b'{"messages": [], "tool_calls": [], "events": []}'
+    mock_response.__enter__.return_value = mock_response
+    mock_urlopen.return_value = mock_response
+
+    #Call the adapter with custom timeout
+    target_url = "http://127.0.0.1:8000/run"
+    custom_timeout = 45
+
+    run_http_target(scenario, target_url, timeout=custom_timeout)
+
+    # Assert that the underlying urlopen call received the parameter
+    _, kwargs = mock_urlopen.call_args
+    assert kwargs["timeout"] == custom_timeout
