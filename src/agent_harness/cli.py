@@ -77,7 +77,6 @@ def build_parser() -> argparse.ArgumentParser:
         "--target-url",
         help="HTTP URL for the live target.",
     )
-    # 1. ADDED ARGUMENT HERE
     run_parser.add_argument(
         "--target-timeout",
         type=int,
@@ -120,12 +119,6 @@ def build_parser() -> argparse.ArgumentParser:
         "--openai-agent-max-turns",
         type=int,
         help="Optional max_turns value passed to the OpenAI Agents SDK runner.",
-    )
-    run_parser.add_argument(
-        "--target-timeout",
-        type=int,
-        default=30,  # or whatever your default timeout should be
-        help="Timeout for live target requests in seconds",
     )
     run_parser.add_argument(
         "--exit-on-fail",
@@ -183,7 +176,6 @@ def main() -> int:
         if args.target_url and not args.live:
             parser.error("--target-url can only be used with --live")
 
-        # 2. ADDED VALIDATION HERE
         if args.target_timeout is not None and args.target_timeout <= 0:
             parser.error("--target-timeout must be greater than zero")
 
@@ -216,7 +208,6 @@ def main() -> int:
         elif args.live:
             try:
                 assert args.target_url is not None
-                # 3. PASSED TIMEOUT TO THE RUNNER HERE
                 result = run_scenario_live(scenario, args.target_url, timeout=args.target_timeout)
             except AdapterError as exc:
                 print(f"adapter error: {exc}", file=sys.stderr)
