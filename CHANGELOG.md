@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **One implemented assertion**:
+  - `approval_required` — fail when a sensitive action in `tool_calls` has no 
+    valid approval event in `trace.events`; trust is determined by `input.context` 
+    so fabricated approval events from untrusted sources are rejected
+
 ## [0.1.0] — 2026-05-17
 
 First packaged release. Consolidates the v0.0.x development series into
