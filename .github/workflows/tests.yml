@@ -44,7 +44,7 @@ jobs:
       - name: Install harness
         run: python -m pip install -e ".[dev]"
       - name: Run tests
-        run: python -m pytest --cov=src/agent_harness --cov-report=html --cov-fail-under=80
+        run: python -m pytest --cov=src/agent_harness --cov-report=term-missing --cov-report=html --cov-fail-under=80
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v6

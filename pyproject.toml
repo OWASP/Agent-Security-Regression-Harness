@@ -81,7 +81,6 @@ warn_redundant_casts = true
 [tool.coverage.run]
 source = ["src/agent_harness"]
 omit = [
-    "examples/*",
     "src/agent_harness/*_adapter.py",
     "src/agent_harness/mcp_*.py",
 ]
