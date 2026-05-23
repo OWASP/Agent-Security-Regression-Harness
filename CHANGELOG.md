@@ -9,10 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **One implemented assertion**:
-  - `approval_required` — fail when a sensitive action in `tool_calls` has no 
-    valid approval event in `trace.events`; trust is determined by `input.context` 
-    so fabricated approval events from untrusted sources are rejected
+- **`approval_required` assertion** — fail when a sensitive action lacks a valid 
+  approval event from a trusted `input.context` source. 
 
 ## [0.1.0] — 2026-05-17
 
