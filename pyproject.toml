@@ -81,8 +81,11 @@ warn_redundant_casts = true
 [tool.coverage.run]
 source = ["src/agent_harness"]
 omit = [
-    "src/agent_harness/*_adapter.py",
-    "src/agent_harness/mcp_*.py",
+    "src/agent_harness/langchain_adapter.py",
+    "src/agent_harness/mcp_adapter.py",
+    "src/agent_harness/mcp_host.py",
+    "src/agent_harness/mcp_runtime.py",
+    "src/agent_harness/openai_agents_adapter.py",
 ]
 
 [[tool.mypy.overrides]]
