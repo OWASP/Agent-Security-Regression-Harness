@@ -36,7 +36,7 @@ classifiers = [
 dependencies = ["PyYAML>=6.0.0"]
 
 [project.optional-dependencies]
-dev = ["pytest>=7", "ruff>=0.6", "mypy>=1.10", "types-PyYAML", "jsonschema>=4"]
+dev = ["pytest>=7", "pytest-cov>=7", "ruff>=0.6", "mypy>=1.10", "types-PyYAML", "jsonschema>=4"]
 openai-agents = ["openai-agents"]
 langchain = ["langchain", "langgraph"]
 mcp = ["mcp>=1.12.4,<2"]
@@ -77,6 +77,13 @@ python_version = "3.11"
 files = ["src/agent_harness"]
 warn_unused_ignores = true
 warn_redundant_casts = true
+
+[tool.coverage.run]
+source = ["src/agent_harness"]
+omit = [
+    "src/agent_harness/*_adapter.py",
+    "src/agent_harness/mcp_*.py",
+]
 
 [[tool.mypy.overrides]]
 # Optional adapter SDKs are imported lazily; missing stubs are expected.
