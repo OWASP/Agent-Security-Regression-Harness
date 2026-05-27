@@ -158,6 +158,14 @@ def validate_scenario_data(data: Any) -> Scenario:
                     "for goal_integrity assertions"
                 )
 
+        if assertion_type == "approval_required":
+            action = assertion.get("action")
+            if not isinstance(action, str) or not action.strip():
+                raise ScenarioValidationError(
+                    f"assertions[{index}].action must be a non-empty string "
+                    "for approval_required assertions"
+                )
+
     return Scenario(
         id=scenario_id,
         title=title,

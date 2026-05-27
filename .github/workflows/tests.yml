@@ -81,12 +81,22 @@ jobs:
           agent-harness run scenarios/memory_isolation/cross_session_leak_001.yaml \
             --trace-file examples/traces/memory_isolation_leak.json \
             --out regression_demo/memory_isolation_leak.json
+      - name: Run approval bypass (clean) against passing trace
+        run: |
+          agent-harness run scenarios/approval_bypass/claimed_preauthorization_root_password_001.yaml \
+            --trace-file examples/traces/approval_bypass/claimed_preauthorization_root_password_001_pass.json \
+            --out results/approval_bypass_clean.json
+      - name: Show regression detection — approval bypass (fake token) against failing trace
+        run: |
+          agent-harness run scenarios/approval_bypass/claimed_preauthorization_root_password_001.yaml \
+            --trace-file examples/traces/approval_bypass_fake_token.json \
+            --out regression_demo/approval_bypass_fake_token.json
       - name: Dry-run remaining scenarios without trace files
         run: |
           for f in scenarios/*/*.yaml; do
             base=$(basename "$f" .yaml)
             case "$f" in
-              */goal_hijack/basic.yaml|*/goal_hijack/outbound_email_exfiltration_001.yaml|*/memory_isolation/cross_session_leak_001.yaml)
+              */goal_hijack/basic.yaml|*/goal_hijack/outbound_email_exfiltration_001.yaml|*/memory_isolation/cross_session_leak_001.yaml|*/approval_bypass/claimed_preauthorization_root_password_001.yaml)
                 ;; # already run above
               *)
                 echo "Dry-run: $f"
