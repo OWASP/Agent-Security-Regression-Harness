@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
+from urllib import error
+
 import pytest
 from test_assertions import make_scenario
 
 from agent_harness.adapters import (
     AdapterError,
     load_python_callable,
+    run_http_target,
     run_python_callable_target,
 )
 from agent_harness.trace import Trace
@@ -292,3 +296,46 @@ def test_python_async_callable_from_running_event_loop():
 
     trace = asyncio.run(run_from_loop())
     assert isinstance(trace, Trace)
+
+
+@patch("urllib.request.urlopen")
+def test_run_http_target_respects_timeout(mock_urlopen):
+    """The timeout argument is forwarded to the underlying network call."""
+    scenario = make_scenario(assertions=[])
+
+    mock_response = MagicMock()
+    mock_response.read.return_value = b'{"messages": [], "tool_calls": [], "events": []}'
+    mock_response.__enter__.return_value = mock_response
+    mock_urlopen.return_value = mock_response
+
+    run_http_target(scenario, "http://127.0.0.1:8000/run", timeout=45)
+
+    _, kwargs = mock_urlopen.call_args
+    assert kwargs["timeout"] == 45
+
+
+@patch("urllib.request.urlopen")
+def test_run_http_target_defaults_to_thirty_second_timeout(mock_urlopen):
+    """Omitting the timeout falls back to the documented 30 second default."""
+    scenario = make_scenario(assertions=[])
+
+    mock_response = MagicMock()
+    mock_response.read.return_value = b'{"messages": [], "tool_calls": [], "events": []}'
+    mock_response.__enter__.return_value = mock_response
+    mock_urlopen.return_value = mock_response
+
+    run_http_target(scenario, "http://127.0.0.1:8000/run")
+
+    _, kwargs = mock_urlopen.call_args
+    assert kwargs["timeout"] == 30
+
+
+@patch("urllib.request.urlopen")
+def test_run_http_target_reports_timeout_errors(mock_urlopen):
+    """A socket timeout surfaces as a clear AdapterError mentioning the limit."""
+    mock_urlopen.side_effect = error.URLError(TimeoutError("timed out"))
+
+    scenario = make_scenario(assertions=[])
+
+    with pytest.raises(AdapterError, match="timed out after 5 seconds"):
+        run_http_target(scenario, "http://127.0.0.1:8000/run", timeout=5)

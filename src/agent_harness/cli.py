@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from agent_harness.adapters import AdapterError
+from agent_harness.adapters import DEFAULT_HTTP_TIMEOUT_SECONDS, AdapterError
 from agent_harness.runner import (
     dry_run_scenario,
     run_scenario_live,
@@ -76,6 +76,14 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument(
         "--target-url",
         help="HTTP URL for the live target.",
+    )
+    run_parser.add_argument(
+        "--target-timeout",
+        type=int,
+        help=(
+            "Timeout in seconds for live HTTP target requests "
+            f"(default: {DEFAULT_HTTP_TIMEOUT_SECONDS})."
+        ),
     )
     run_parser.add_argument(
         "--python-target",
@@ -170,6 +178,12 @@ def main() -> int:
         if args.target_url and not args.live:
             parser.error("--target-url can only be used with --live")
 
+        if args.target_timeout is not None and not args.live:
+            parser.error("--target-timeout can only be used with --live")
+
+        if args.target_timeout is not None and args.target_timeout <= 0:
+            parser.error("--target-timeout must be greater than zero")
+
         if args.openai_agent_max_turns is not None and args.openai_agent is None:
             parser.error("--openai-agent-max-turns can only be used with --openai-agent")
 
@@ -199,7 +213,12 @@ def main() -> int:
         elif args.live:
             try:
                 assert args.target_url is not None
-                result = run_scenario_live(scenario, args.target_url)
+                timeout = (
+                    args.target_timeout
+                    if args.target_timeout is not None
+                    else DEFAULT_HTTP_TIMEOUT_SECONDS
+                )
+                result = run_scenario_live(scenario, args.target_url, timeout=timeout)
             except AdapterError as exc:
                 print(f"adapter error: {exc}", file=sys.stderr)
                 return 1

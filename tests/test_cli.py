@@ -5,7 +5,10 @@ from __future__ import annotations
 import json
 import sys
 
-from agent_harness.cli import VERSION, main
+import pytest
+
+from agent_harness.adapters import AdapterError
+from agent_harness.cli import VERSION, build_parser, main
 
 VALID_SCENARIO = """
 id: goal_hijack.basic_001
@@ -862,3 +865,135 @@ def test_run_langchain_target_returns_adapter_error_for_bad_import(
     assert captured.out == ""
     assert "adapter error:" in captured.err
     assert "Could not import LangChain/LangGraph target module" in captured.err
+
+
+def test_target_timeout_flag_parses():
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "run",
+            "scenario.yaml",
+            "--live",
+            "--target-url",
+            "http://localhost/run",
+            "--target-timeout",
+            "45",
+        ]
+    )
+    assert args.target_timeout == 45
+
+    default_args = parser.parse_args(
+        ["run", "scenario.yaml", "--live", "--target-url", "http://localhost/run"]
+    )
+    assert default_args.target_timeout is None
+
+
+def test_run_live_passes_timeout_to_adapter(capsys, monkeypatch, tmp_path):
+    scenario_file = tmp_path / "scenario.yaml"
+    scenario_file.write_text(VALID_SCENARIO, encoding="utf-8")
+
+    captured_kwargs: dict[str, int] = {}
+
+    def fake_run_scenario_live(scenario, target_url, *, timeout):
+        captured_kwargs["timeout"] = timeout
+        raise AdapterError("stop after capturing timeout")
+
+    monkeypatch.setattr("agent_harness.cli.run_scenario_live", fake_run_scenario_live)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agent-harness",
+            "run",
+            str(scenario_file),
+            "--live",
+            "--target-url",
+            "http://127.0.0.1:1/run",
+            "--target-timeout",
+            "45",
+        ],
+    )
+
+    exit_code = main()
+
+    assert exit_code == 1
+    assert captured_kwargs["timeout"] == 45
+
+
+def test_run_live_defaults_timeout_to_thirty(capsys, monkeypatch, tmp_path):
+    scenario_file = tmp_path / "scenario.yaml"
+    scenario_file.write_text(VALID_SCENARIO, encoding="utf-8")
+
+    captured_kwargs: dict[str, int] = {}
+
+    def fake_run_scenario_live(scenario, target_url, *, timeout):
+        captured_kwargs["timeout"] = timeout
+        raise AdapterError("stop after capturing timeout")
+
+    monkeypatch.setattr("agent_harness.cli.run_scenario_live", fake_run_scenario_live)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agent-harness",
+            "run",
+            str(scenario_file),
+            "--live",
+            "--target-url",
+            "http://127.0.0.1:1/run",
+        ],
+    )
+
+    main()
+
+    assert captured_kwargs["timeout"] == 30
+
+
+def test_target_timeout_must_be_positive(capsys, monkeypatch, tmp_path):
+    scenario_file = tmp_path / "scenario.yaml"
+    scenario_file.write_text(VALID_SCENARIO, encoding="utf-8")
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agent-harness",
+            "run",
+            str(scenario_file),
+            "--live",
+            "--target-url",
+            "http://localhost/run",
+            "--target-timeout",
+            "0",
+        ],
+    )
+
+    with pytest.raises(SystemExit):
+        main()
+
+    assert "--target-timeout must be greater than zero" in capsys.readouterr().err
+
+
+def test_target_timeout_requires_live(capsys, monkeypatch, tmp_path):
+    scenario_file = tmp_path / "scenario.yaml"
+    scenario_file.write_text(VALID_SCENARIO, encoding="utf-8")
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agent-harness",
+            "run",
+            str(scenario_file),
+            "--trace-file",
+            "trace.json",
+            "--target-timeout",
+            "10",
+        ],
+    )
+
+    with pytest.raises(SystemExit):
+        main()
+
+    assert "--target-timeout can only be used with --live" in capsys.readouterr().err

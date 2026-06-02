@@ -18,6 +18,9 @@ class AdapterError(RuntimeError):
     """Raised when a target adapter fails."""
 
 
+DEFAULT_HTTP_TIMEOUT_SECONDS = 30
+
+
 def build_target_payload(scenario: Scenario) -> dict[str, Any]:
     """Build the payload sent to a target adapter."""
     return {
@@ -114,7 +117,12 @@ def load_python_callable(
     return target
 
 
-def run_http_target(scenario: Scenario, target_url: str) -> Trace:
+def run_http_target(
+    scenario: Scenario,
+    target_url: str,
+    *,
+    timeout: int = DEFAULT_HTTP_TIMEOUT_SECONDS,
+) -> Trace:
     """Run a scenario against an HTTP target and return its trace."""
     body = build_target_payload(scenario)
     request_data = json.dumps(body).encode("utf-8")
@@ -129,9 +137,13 @@ def run_http_target(scenario: Scenario, target_url: str) -> Trace:
     )
 
     try:
-        with request.urlopen(http_request, timeout=30) as response:
+        with request.urlopen(http_request, timeout=timeout) as response:
             response_text = response.read().decode("utf-8")
     except error.URLError as exc:
+        if isinstance(exc.reason, TimeoutError):
+            raise AdapterError(
+                f"HTTP target request timed out after {timeout} seconds"
+            ) from exc
         raise AdapterError(f"HTTP target request failed: {exc}") from exc
 
     try:
