@@ -18,7 +18,8 @@ The `security-regression` job in `.github/workflows/tests.yml`:
 5. Runs trace-based harness checks against passing traces for representative scenarios (scenario validation is already covered by pytest)
 6. Dry-runs remaining scenarios that lack trace fixtures
 7. Reads every file in `results/` and exits 1 if any has `"result": "fail"` or `"result": "error"`
-8. Uploads result JSON files as artifacts (runs even on failure)
+8. Reads every file in `regression_demo/` and exits 1 if any does not have `"result": "fail"`
+9. Uploads result JSON files as artifacts (runs even on failure)
 
 ## How pass and fail actually work
 
@@ -41,15 +42,15 @@ agent-harness run scenarios/goal_hijack/basic.yaml \
 ```
 
 **Whole-suite gating** (used by this repository's committed workflow). Run
-every scenario without `--exit-on-fail`, write each result to `results/`, and
-add a final step that scans every JSON for `"result": "fail"` or
-`"result": "error"` and exits 1 if any is found. This is what the
-`security-regression` job does today; it allows a "regression demo" step
-(where a fail is expected) to live alongside passing steps by writing that
-result to a separate directory the scanner skips.
+every scenario without `--exit-on-fail`, write each result to `results/` for 
+clean traces and to `regression_demo/` for expected-fail traces.
+Add a step that scans every JSON in `results/` for a result that is
+`"result": "fail"` or `"result": "error"` and exits 1 if any is found. 
+Add a step that scans every JSON in `regression_demo/` for a result that is 
+not `"result": "fail"` (where a fail is expected) and exits 1 if any is found.
 
 A result of `"error"` means the harness did not complete the regression check
-correctly, so both approaches treat it as a CI failure.
+correctly, so both gate steps treat it as a CI failure.
 
 ```
 harness writes JSON → gate (flag or post-scan) decides exit code → job pass/fail
@@ -118,6 +119,7 @@ new scenarios.
 When you add a scenario to this repository, add a matching trace file to
 `examples/traces/` and a new run step to `.github/workflows/tests.yml`:
 
+### Clean traces
 ```yaml
 - name: Run my new scenario
   run: |
@@ -126,7 +128,18 @@ When you add a scenario to this repository, add a matching trace file to
       --out results/my_scenario.json
 ```
 
-The result-checking step picks up the new output file automatically.
+### Failing traces
+```yaml
+- name: Run my new scenario
+  run: |
+    agent-harness run scenarios/my_category/my_scenario.yaml \
+      --trace-file examples/traces/my_trace.json \
+      --out regression_demo/my_scenario.json
+```
+
+Add the scenario path to the exclusion list in the dry-run step to avoid running it twice.
+
+The result-checking steps pick up new output files automatically.
 
 ## Related
 

@@ -128,6 +128,24 @@ jobs:
               sys.exit(1)
           print("All security regression results pass (or not_run for unimplemented assertions).")
           PY
+      - name: Fail if any regression-demo result is not fail
+        run: |
+          python - <<'PY'
+          import json, pathlib, sys
+          not_failed = []
+          for path in pathlib.Path("regression_demo").glob("*.json"):
+              result = json.loads(path.read_text(encoding="utf-8"))
+              if result.get("result") != "fail":
+                  not_failed.append(
+                      f"{path.name}: {result['scenario_id']} returned {result['result']}"
+                  )
+          if not_failed:
+              print("Regression-demo failures detected:")
+              for item in not_failed:
+                  print(f"  - {item}")
+              sys.exit(1)
+          print("All regression-demo results correctly returned fail.")
+          PY
       - name: Upload result artifacts
         if: always()
         uses: actions/upload-artifact@v6
