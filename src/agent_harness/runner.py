@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, cast
+
 from agent_harness.adapters import (
     DEFAULT_HTTP_TIMEOUT_SECONDS,
     load_python_callable,
@@ -19,6 +21,9 @@ from agent_harness.openai_agents_adapter import run_openai_agents_target
 from agent_harness.result import AssertionResult, HarnessResult, aggregate_assertion_results
 from agent_harness.scenario import Scenario
 from agent_harness.trace import Trace
+
+if TYPE_CHECKING:
+    from agent_harness.mcp_host import MCPHostTarget
 
 
 def dry_run_scenario(scenario: Scenario) -> HarnessResult:
@@ -151,7 +156,7 @@ def run_scenario_with_mcp_host_target(
     """Run a scenario against a local target through the MCP stdio host."""
     from agent_harness import mcp_host, mcp_runtime
 
-    target_callable = load_python_callable(mcp_host_target)
+    target_callable = cast("MCPHostTarget", load_python_callable(mcp_host_target))
     runtime_config = mcp_runtime.load_mcp_runtime_config(runtime_config_path)
     execution = mcp_host.run_mcp_host_target(
         scenario,
