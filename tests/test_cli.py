@@ -5,9 +5,9 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -16,7 +16,6 @@ from agent_harness.adapters import AdapterError
 from agent_harness.cli import VERSION, build_parser, main
 from agent_harness.result import AssertionResult, HarnessResult
 from agent_harness.trace import Trace
-
 
 FIXTURE_SERVER_PATH = (
     Path(__file__).parent

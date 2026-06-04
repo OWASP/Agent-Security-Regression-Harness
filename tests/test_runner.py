@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from agent_harness import mcp_host, mcp_runtime
-from agent_harness import runner
+from agent_harness import mcp_host, mcp_runtime, runner
 from agent_harness.mcp_runtime import parse_mcp_runtime_config
 from agent_harness.scenario import validate_scenario_data
 from agent_harness.trace import Trace
@@ -59,7 +58,11 @@ servers:
             ]
         }
     )
-    target_callable = lambda payload, host: {"final_output": "Done."}
+    def target_callable(payload, host):
+        return {
+            "final_output": "Done.",
+        }
+
     observed = {}
 
     def fake_load_python_callable(import_path):
