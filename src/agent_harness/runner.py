@@ -143,6 +143,33 @@ def run_scenario_with_mcp_target(
     )
 
 
+def run_scenario_with_mcp_host_target(
+    scenario: Scenario,
+    mcp_host_target: str,
+    runtime_config_path: str,
+) -> HarnessResult:
+    """Run a scenario against a local target through the MCP stdio host."""
+    from agent_harness import mcp_host, mcp_runtime
+
+    target_callable = load_python_callable(mcp_host_target)
+    runtime_config = mcp_runtime.load_mcp_runtime_config(runtime_config_path)
+    execution = mcp_host.run_mcp_host_target(
+        scenario,
+        target_callable,
+        runtime_config,
+    )
+    assertion_results = evaluate_assertions(scenario, execution.trace)
+    top_level_result = aggregate_assertion_results(assertion_results)
+
+    return HarnessResult(
+        scenario_id=scenario.id,
+        mode="live",
+        result=top_level_result,
+        assertions=assertion_results,
+        trace=execution.trace,
+    )
+
+
 def run_scenario_with_langchain_target(
     scenario: Scenario,
     langchain_target: str,
