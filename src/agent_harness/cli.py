@@ -11,6 +11,7 @@ from agent_harness.runner import (
     dry_run_scenario,
     run_scenario_live,
     run_scenario_with_langchain_target,
+    run_scenario_with_mcp_host_target,
     run_scenario_with_mcp_target,
     run_scenario_with_openai_agent,
     run_scenario_with_python_target,
@@ -107,6 +108,17 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     run_parser.add_argument(
+        "--mcp-host-target",
+        help=(
+            "Run the scenario against a local callable MCP host target in "
+            "module:function format."
+        ),
+    )
+    run_parser.add_argument(
+        "--mcp-runtime-config",
+        help="Path to the MCP runtime config YAML used with --mcp-host-target.",
+    )
+    run_parser.add_argument(
         "--langchain-target",
         help=(
             "Run the scenario against a LangChain/LangGraph target loaded from "
@@ -162,14 +174,15 @@ def main() -> int:
             args.python_target is not None,
             args.openai_agent is not None,
             args.mcp_target is not None,
+            args.mcp_host_target is not None,
             args.langchain_target is not None,
         ]
 
         if sum(bool(mode) for mode in selected_modes) != 1:
             parser.error(
                 "'run' requires exactly one of --dry-run, --trace-file, "
-                "--live, --python-target, --openai-agent, --mcp-target, or "
-                "--langchain-target"
+                "--live, --python-target, --openai-agent, --mcp-target, "
+                "--mcp-host-target, or --langchain-target"
             )
 
         if args.live and not args.target_url:
@@ -183,6 +196,12 @@ def main() -> int:
 
         if args.target_timeout is not None and args.target_timeout <= 0:
             parser.error("--target-timeout must be greater than zero")
+
+        if args.mcp_host_target and not args.mcp_runtime_config:
+            parser.error("--mcp-runtime-config is required when using --mcp-host-target")
+
+        if args.mcp_runtime_config and not args.mcp_host_target:
+            parser.error("--mcp-runtime-config only applies to --mcp-host-target")
 
         if args.openai_agent_max_turns is not None and args.openai_agent is None:
             parser.error("--openai-agent-max-turns can only be used with --openai-agent")
@@ -246,6 +265,17 @@ def main() -> int:
                 result = run_scenario_with_mcp_target(
                     scenario,
                     args.mcp_target,
+                )
+            except AdapterError as exc:
+                print(f"adapter error: {exc}", file=sys.stderr)
+                return 1
+        elif args.mcp_host_target:
+            try:
+                assert args.mcp_runtime_config is not None
+                result = run_scenario_with_mcp_host_target(
+                    scenario,
+                    args.mcp_host_target,
+                    args.mcp_runtime_config,
                 )
             except AdapterError as exc:
                 print(f"adapter error: {exc}", file=sys.stderr)
