@@ -82,7 +82,8 @@ warn_redundant_casts = true
 source = ["src/agent_harness"]
 omit = [
     "src/agent_harness/*_adapter.py",
-    "src/agent_harness/mcp_*.py",
+    "src/agent_harness/mcp_host.py",
+    "src/agent_harness/mcp_runtime.py",
 ]
 
 [[tool.mypy.overrides]]
