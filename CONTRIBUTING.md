@@ -23,6 +23,7 @@ Before opening a large pull request, read:
 - `docs/scope.md`
 - `docs/non-goals.md`
 - `docs/scenario-spec.md`
+- `docs/schema-versioning.md`
 
 Large, unfocused additions will be rejected. This project is intentionally narrow.
 
