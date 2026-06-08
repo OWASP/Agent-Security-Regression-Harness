@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Support recursive directory and glob validation in `agent-harness validate`.
 - **`approval_required` assertion** — fail when a sensitive action lacks a valid 
   approval event from a trusted `input.context` source. 
 - **`--target-timeout` flag** — configure the request timeout in seconds for live
