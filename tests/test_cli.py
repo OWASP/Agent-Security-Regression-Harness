@@ -55,7 +55,10 @@ def test_validate_command_accepts_valid_scenario(capsys, monkeypatch, tmp_path):
     captured = capsys.readouterr()
 
     assert exit_code == 0
-    assert captured.out.strip() == "valid: goal_hijack.basic_001"
+    assert captured.out.splitlines() == [
+        f"valid: {scenario_file}: goal_hijack.basic_001",
+        "summary: 1 valid, 0 invalid",
+    ]
 
 
 def test_validate_command_rejects_missing_fields(capsys, monkeypatch, tmp_path):
@@ -69,6 +72,64 @@ def test_validate_command_rejects_missing_fields(capsys, monkeypatch, tmp_path):
     captured = capsys.readouterr()
 
     assert exit_code == 1
+    assert "missing required fields" in captured.err
+    assert captured.out.strip() == "summary: 0 valid, 1 invalid"
+
+
+def test_validate_command_recursively_accepts_valid_scenarios(
+    capsys, monkeypatch, tmp_path
+):
+    scenarios_dir = tmp_path / "scenarios"
+    nested_dir = scenarios_dir / "nested"
+    nested_dir.mkdir(parents=True)
+    first_scenario = scenarios_dir / "first.yaml"
+    second_scenario = nested_dir / "second.yml"
+    first_scenario.write_text(VALID_SCENARIO, encoding="utf-8")
+    second_scenario.write_text(
+        VALID_SCENARIO.replace("goal_hijack.basic_001", "goal_hijack.second_001"),
+        encoding="utf-8",
+    )
+    (nested_dir / "notes.txt").write_text("not a scenario", encoding="utf-8")
+
+    monkeypatch.setattr(sys, "argv", ["agent-harness", "validate", str(scenarios_dir)])
+
+    exit_code = main()
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert captured.out.splitlines() == [
+        f"valid: {first_scenario}: goal_hijack.basic_001",
+        f"valid: {second_scenario}: goal_hijack.second_001",
+        "summary: 2 valid, 0 invalid",
+    ]
+    assert captured.err == ""
+
+
+def test_validate_command_glob_fails_when_any_scenario_is_invalid(
+    capsys, monkeypatch, tmp_path
+):
+    valid_scenario = tmp_path / "valid.yaml"
+    invalid_scenario = tmp_path / "invalid.yml"
+    valid_scenario.write_text(VALID_SCENARIO, encoding="utf-8")
+    invalid_scenario.write_text("id: broken.scenario\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["agent-harness", "validate", str(tmp_path / "*.y*ml")],
+    )
+
+    exit_code = main()
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert captured.out.splitlines() == [
+        f"valid: {valid_scenario}: goal_hijack.basic_001",
+        "summary: 1 valid, 1 invalid",
+    ]
+    assert f"invalid: {invalid_scenario}:" in captured.err
     assert "missing required fields" in captured.err
 
 
