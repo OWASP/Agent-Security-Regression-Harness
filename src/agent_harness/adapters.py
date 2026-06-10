@@ -122,17 +122,22 @@ def run_http_target(
     target_url: str,
     *,
     timeout: int = DEFAULT_HTTP_TIMEOUT_SECONDS,
+    headers: dict[str, str] | None = None,
 ) -> Trace:
     """Run a scenario against an HTTP target and return its trace."""
     body = build_target_payload(scenario)
     request_data = json.dumps(body).encode("utf-8")
+    request_headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    if headers:
+        request_headers.update(headers)
+
     http_request = request.Request(
         target_url,
         data=request_data,
-        headers={
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        },
+        headers=request_headers,
         method="POST",
     )
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 
@@ -20,6 +21,29 @@ from agent_harness.scenario import ScenarioValidationError, load_scenario
 from agent_harness.trace import TraceValidationError, load_trace
 
 VERSION = "0.1.0"
+HEADER_NAME_RE = re.compile(r"^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")
+
+
+def parse_target_headers(raw_headers: list[str] | None) -> dict[str, str]:
+    """Parse NAME=VALUE HTTP header arguments for live target requests."""
+    parsed: dict[str, str] = {}
+    for raw_header in raw_headers or []:
+        if "=" not in raw_header:
+            raise ValueError("header must use NAME=VALUE format")
+
+        name, value = raw_header.split("=", 1)
+        name = name.strip()
+
+        if not name:
+            raise ValueError("header name must not be empty")
+        if not HEADER_NAME_RE.fullmatch(name):
+            raise ValueError(f"invalid header name: {name!r}")
+        if "\r" in value or "\n" in value:
+            raise ValueError(f"header {name!r} must not contain newlines")
+
+        parsed[name] = value
+
+    return parsed
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -83,6 +107,16 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Timeout in seconds for live HTTP target requests "
             f"(default: {DEFAULT_HTTP_TIMEOUT_SECONDS})."
+        ),
+    )
+    run_parser.add_argument(
+        "--target-header",
+        action="append",
+        metavar="NAME=VALUE",
+        help=(
+            "Optional HTTP header for live target requests. Repeat for multiple "
+            "headers. Header values are sent to the target only and are not "
+            "stored in scenario files or result JSON."
         ),
     )
     run_parser.add_argument(
@@ -181,8 +215,16 @@ def main() -> int:
         if args.target_timeout is not None and not args.live:
             parser.error("--target-timeout can only be used with --live")
 
+        if args.target_header is not None and not args.live:
+            parser.error("--target-header can only be used with --live")
+
         if args.target_timeout is not None and args.target_timeout <= 0:
             parser.error("--target-timeout must be greater than zero")
+
+        try:
+            target_headers = parse_target_headers(args.target_header)
+        except ValueError as exc:
+            parser.error(f"--target-header {exc}")
 
         if args.openai_agent_max_turns is not None and args.openai_agent is None:
             parser.error("--openai-agent-max-turns can only be used with --openai-agent")
@@ -218,7 +260,12 @@ def main() -> int:
                     if args.target_timeout is not None
                     else DEFAULT_HTTP_TIMEOUT_SECONDS
                 )
-                result = run_scenario_live(scenario, args.target_url, timeout=timeout)
+                result = run_scenario_live(
+                    scenario,
+                    args.target_url,
+                    timeout=timeout,
+                    headers=target_headers,
+                )
             except AdapterError as exc:
                 print(f"adapter error: {exc}", file=sys.stderr)
                 return 1
