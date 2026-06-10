@@ -141,6 +141,20 @@ Add the scenario path to the exclusion list in the dry-run step to avoid running
 
 The result-checking steps pick up new output files automatically.
 
+## Batch scenario validation
+
+`agent-harness validate` now accepts directories and glob patterns in addition
+to single files. Use it as a fast pre-flight check before running scenarios:
+
+```yaml
+- name: Validate all scenarios
+  run: agent-harness validate scenarios/
+```
+
+This validates every `.yaml`/`.yml` file recursively under `scenarios/`,
+prints one line per scenario, and exits non-zero if any are invalid. A summary
+line shows the count of valid and invalid scenarios.
+
 ## Related
 
 - [Trace format](trace-format.md)
