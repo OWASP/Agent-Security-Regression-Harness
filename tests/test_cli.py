@@ -997,3 +997,87 @@ def test_target_timeout_requires_live(capsys, monkeypatch, tmp_path):
         main()
 
     assert "--target-timeout can only be used with --live" in capsys.readouterr().err
+
+
+# --- Recursive scenario validation (issue #84) ---
+
+
+def test_validate_directory_all_valid(capsys, monkeypatch, tmp_path):
+    sub = tmp_path / "scenarios"
+    sub.mkdir()
+    (sub / "a.yaml").write_text(VALID_SCENARIO, encoding="utf-8")
+    (sub / "b.yaml").write_text(VALID_SCENARIO, encoding="utf-8")
+
+    monkeypatch.setattr(sys, "argv", ["agent-harness", "validate", str(sub)])
+
+    exit_code = main()
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "valid: goal_hijack.basic_001" in captured.out
+    assert "2 valid, 0 invalid (2 total)" in captured.out
+
+
+def test_validate_directory_mixed_validity(capsys, monkeypatch, tmp_path):
+    sub = tmp_path / "scenarios"
+    sub.mkdir()
+    (sub / "good.yaml").write_text(VALID_SCENARIO, encoding="utf-8")
+    (sub / "bad.yaml").write_text("id: broken.scenario\n", encoding="utf-8")
+
+    monkeypatch.setattr(sys, "argv", ["agent-harness", "validate", str(sub)])
+
+    exit_code = main()
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "valid: goal_hijack.basic_001" in captured.out
+    assert "missing required fields" in captured.err
+    assert "1 valid, 1 invalid (2 total)" in captured.out
+
+
+def test_validate_directory_empty(tmp_path, monkeypatch, capsys):
+    sub = tmp_path / "empty"
+    sub.mkdir()
+
+    monkeypatch.setattr(sys, "argv", ["agent-harness", "validate", str(sub)])
+
+    exit_code = main()
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "no scenario files found" in captured.err
+
+
+def test_validate_glob_pattern(capsys, monkeypatch, tmp_path):
+    sub = tmp_path / "scenarios"
+    sub.mkdir()
+    (sub / "one.yaml").write_text(VALID_SCENARIO, encoding="utf-8")
+    (sub / "two.yaml").write_text(VALID_SCENARIO, encoding="utf-8")
+
+    pattern = str(sub / "*.yaml")
+    monkeypatch.setattr(sys, "argv", ["agent-harness", "validate", pattern])
+
+    exit_code = main()
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "2 valid, 0 invalid (2 total)" in captured.out
+
+
+def test_validate_single_file_still_works(capsys, monkeypatch, tmp_path):
+    scenario_file = tmp_path / "scenario.yaml"
+    scenario_file.write_text(VALID_SCENARIO, encoding="utf-8")
+
+    monkeypatch.setattr(
+        sys, "argv", ["agent-harness", "validate", str(scenario_file)]
+    )
+
+    exit_code = main()
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert captured.out.strip() == "valid: goal_hijack.basic_001  ({})".format(
+        scenario_file
+    )
+    # No summary line for single file
+    assert "total" not in captured.out
