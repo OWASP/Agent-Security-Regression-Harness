@@ -27,6 +27,16 @@ The `security-regression` job in `.github/workflows/tests.yml`:
 `--out`. The `result` field in that JSON will be `pass`, `fail`, `not_run`,
 or `error`.
 
+For CI systems that ingest JUnit XML, also pass `--junit-out <path>`. This
+writes one testcase per assertion while preserving the result JSON output:
+
+```bash
+agent-harness run scenarios/goal_hijack/basic.yaml \
+  --trace-file examples/traces/no_denied_tool_call.json \
+  --out results/basic.json \
+  --junit-out results/basic.xml
+```
+
 By default `agent-harness run` exits 0 on every successful run regardless of
 assertion outcomes — the result JSON is the source of truth. There are two
 ways to turn that into a job failure:
@@ -83,6 +93,8 @@ would need an HTTP agent server running before the harness step fires.
 Result JSON files are uploaded as a workflow artifact named
 `regression-results` after every run. The artifact upload step has
 `if: always()`, so you get the files whether the job passed or failed.
+If you write JUnit XML with `--junit-out`, include the XML files in the same
+artifact or pass them to your CI system's test-report publisher.
 
 To find them:
 

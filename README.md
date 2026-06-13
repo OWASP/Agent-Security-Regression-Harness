@@ -231,6 +231,19 @@ agent-harness run scenarios/goal_hijack/basic.yaml --trace-file examples/traces/
 agent-harness run scenarios/goal_hijack/basic.yaml --live --target-url http://127.0.0.1:8000/run --out result.json
 ```
 
+### 9. Write JUnit XML for CI systems
+
+All run modes also support `--junit-out`. The harness still prints result JSON
+to stdout unless `--out` is provided, and writes one JUnit testcase per
+assertion:
+
+```bash
+agent-harness run scenarios/goal_hijack/basic.yaml \
+  --trace-file examples/traces/denied_tool_call.json \
+  --out result.json \
+  --junit-out result.xml
+```
+
 ## Live HTTP target contract
 
 Live mode expects an HTTP target that accepts a `POST` request.
