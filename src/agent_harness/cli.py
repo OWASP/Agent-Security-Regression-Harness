@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import glob
 import sys
 from pathlib import Path
 
@@ -20,6 +21,34 @@ from agent_harness.scenario import ScenarioValidationError, load_scenario
 from agent_harness.trace import TraceValidationError, load_trace
 
 VERSION = "0.1.0"
+
+
+def _discover_scenario_files(patterns: list[str]) -> list[Path]:
+    """Return unique scenario files matched by files, directories, or globs."""
+    scenario_files: list[Path] = []
+    seen: set[Path] = set()
+
+    for pattern in patterns:
+        path = Path(pattern)
+        if path.is_dir():
+            matches = sorted(
+                matched
+                for suffix in ("*.yaml", "*.yml")
+                for matched in path.rglob(suffix)
+                if matched.is_file()
+            )
+        else:
+            glob_matches = sorted(Path(match) for match in glob.glob(pattern, recursive=True))
+            matches = glob_matches if glob_matches else [path]
+
+        for match in matches:
+            normalized = match.resolve()
+            if normalized in seen or not match.is_file():
+                continue
+            seen.add(normalized)
+            scenario_files.append(match)
+
+    return scenario_files
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -40,11 +69,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     validate_parser = subparsers.add_parser(
         "validate",
-        help="Validate a scenario file.",
+        help="Validate scenario files, directories, or glob patterns.",
     )
     validate_parser.add_argument(
-        "scenario_file",
-        help="Path to the scenario YAML file.",
+        "scenario_paths",
+        nargs="+",
+        help="Scenario YAML file, directory, or glob pattern to validate.",
     )
 
     run_parser = subparsers.add_parser(
@@ -145,14 +175,28 @@ def main() -> int:
         return 0
 
     if args.command == "validate":
-        try:
-            scenario = load_scenario(args.scenario_file)
-        except ScenarioValidationError as exc:
-            print(f"invalid: {exc}", file=sys.stderr)
+        scenario_files = _discover_scenario_files(args.scenario_paths)
+        if not scenario_files:
+            print("invalid: no scenario files matched", file=sys.stderr)
             return 1
 
-        print(f"valid: {scenario.id}")
-        return 0
+        valid_count = 0
+        invalid_count = 0
+
+        for scenario_file in scenario_files:
+            try:
+                scenario = load_scenario(scenario_file)
+            except ScenarioValidationError as exc:
+                invalid_count += 1
+                print(f"invalid: {scenario_file}: {exc}", file=sys.stderr)
+                continue
+
+            valid_count += 1
+            print(f"valid: {scenario_file}: {scenario.id}")
+
+        print(f"summary: {valid_count} valid, {invalid_count} invalid")
+        return 1 if invalid_count else 0
+
 
     if args.command == "run":
         selected_modes = [

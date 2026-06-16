@@ -55,7 +55,8 @@ def test_validate_command_accepts_valid_scenario(capsys, monkeypatch, tmp_path):
     captured = capsys.readouterr()
 
     assert exit_code == 0
-    assert captured.out.strip() == "valid: goal_hijack.basic_001"
+    assert f"valid: {scenario_file}: goal_hijack.basic_001" in captured.out
+    assert "summary: 1 valid, 0 invalid" in captured.out
 
 
 def test_validate_command_rejects_missing_fields(capsys, monkeypatch, tmp_path):
@@ -70,6 +71,53 @@ def test_validate_command_rejects_missing_fields(capsys, monkeypatch, tmp_path):
 
     assert exit_code == 1
     assert "missing required fields" in captured.err
+    assert "summary: 0 valid, 1 invalid" in captured.out
+
+
+def test_validate_command_accepts_recursive_directory(capsys, monkeypatch, tmp_path):
+    scenarios_dir = tmp_path / "scenarios"
+    nested_dir = scenarios_dir / "goal_hijack"
+    nested_dir.mkdir(parents=True)
+    first_scenario = scenarios_dir / "basic.yaml"
+    second_scenario = nested_dir / "nested.yml"
+    first_scenario.write_text(VALID_SCENARIO, encoding="utf-8")
+    second_scenario.write_text(
+        VALID_SCENARIO.replace("goal_hijack.basic_001", "goal_hijack.nested_001"),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(sys, "argv", ["agent-harness", "validate", str(scenarios_dir)])
+
+    exit_code = main()
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert f"valid: {first_scenario}: goal_hijack.basic_001" in captured.out
+    assert f"valid: {second_scenario}: goal_hijack.nested_001" in captured.out
+    assert "summary: 2 valid, 0 invalid" in captured.out
+
+
+def test_validate_command_exits_nonzero_for_mixed_glob(capsys, monkeypatch, tmp_path):
+    valid_scenario = tmp_path / "valid.yaml"
+    invalid_scenario = tmp_path / "invalid.yaml"
+    valid_scenario.write_text(VALID_SCENARIO, encoding="utf-8")
+    invalid_scenario.write_text("id: broken.scenario\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["agent-harness", "validate", str(tmp_path / "*.yaml")],
+    )
+
+    exit_code = main()
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert f"valid: {valid_scenario}: goal_hijack.basic_001" in captured.out
+    assert f"invalid: {invalid_scenario}: missing required fields" in captured.err
+    assert "summary: 1 valid, 1 invalid" in captured.out
 
 
 def test_run_dry_run_outputs_result_json(capsys, monkeypatch, tmp_path):
