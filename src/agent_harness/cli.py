@@ -10,7 +10,6 @@ from pathlib import Path
 
 from agent_harness.adapters import DEFAULT_HTTP_TIMEOUT_SECONDS, AdapterError
 from agent_harness.junit import result_to_junit_xml
-from agent_harness.sarif import result_to_sarif
 from agent_harness.runner import (
     dry_run_scenario,
     run_scenario_live,
@@ -21,6 +20,7 @@ from agent_harness.runner import (
     run_scenario_with_python_target,
     run_scenario_with_trace,
 )
+from agent_harness.sarif import result_to_sarif
 from agent_harness.scenario import ScenarioValidationError, load_scenario
 from agent_harness.trace import TraceValidationError, load_trace
 
