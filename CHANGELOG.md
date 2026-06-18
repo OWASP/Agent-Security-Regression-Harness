@@ -9,10 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **MCP host CLI wiring** — add `agent-harness run --mcp-host-target ...`
+  with `--mcp-runtime-config ...` for local stdio MCP host runs.
 - **`approval_required` assertion** — fail when a sensitive action lacks a valid 
   approval event from a trusted `input.context` source. 
 - **`--target-timeout` flag** — configure the request timeout in seconds for live
   HTTP targets via `agent-harness run --live` (default 30). 
+- **`version` field on `schemas/scenario.schema.json` and `schemas/result.schema.json`** — the authoritative numeric state of each schema, per the versioning policy in `docs/schema-versioning.md`. Both schemas now carry `"version": 1`.
 
 ## [0.1.0] — 2026-05-17
 

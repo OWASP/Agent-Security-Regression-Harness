@@ -278,6 +278,10 @@ Both contracts are enforced by `tests/test_scenario_schema_sync.py`. If
 you change either side, that test will tell you whether you preserved
 the documented asymmetry or accidentally created new drift.
 
+For how schema changes are versioned, what counts as a breaking
+change, and how deprecations and removals are announced, see
+[`docs/schema-versioning.md`](schema-versioning.md).
+
 ## Design rule
 
 Scenario files should describe security expectations without depending on one specific model, vendor, or framework.
