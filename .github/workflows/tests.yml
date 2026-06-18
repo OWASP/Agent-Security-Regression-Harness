@@ -128,6 +128,24 @@ jobs:
               sys.exit(1)
           print("All security regression results pass (or not_run for unimplemented assertions).")
           PY
+      - name: Fail if any expected regression-demo file is missing
+        run: |
+          python - <<'PY'
+          import pathlib, sys
+          missing_files = []
+          expected_files = ["memory_isolation_leak.json", "approval_bypass_fake_token.json"]
+          target_directory = pathlib.Path("regression_demo")
+          for file in expected_files:
+              file_path = target_directory / file
+              if not file_path.is_file():
+                  missing_files.append(file_path)
+          if missing_files:
+              print("Expected regression-demo output files are missing:")
+              for item in missing_files:
+                  print(f"  - {item}")
+              sys.exit(1)
+          print("All expected regression-demo output files exist.")
+          PY
       - name: Fail if any regression-demo result is not fail
         run: |
           python - <<'PY'

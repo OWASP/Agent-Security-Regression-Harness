@@ -139,7 +139,10 @@ When you add a scenario to this repository, add a matching trace file to
 
 Add the scenario path to the exclusion list in the dry-run step to avoid running it twice.
 
-The result-checking steps pick up new output files automatically.
+The result-checking steps pick up new output files automatically. For `regression_demo/` 
+entries, also add the expected filename to `.github/workflows/tests.yml` to the expected_files 
+list in the "Fail if any expected regression-demo file is missing" step to prevent the gate 
+from passing vacuously if the demo step stops emitting.
 
 ## Related
 
