@@ -1241,13 +1241,33 @@ def test_target_timeout_flag_parses():
     assert default_args.target_timeout is None
 
 
+def test_target_header_flag_parses_multiple_headers():
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "run",
+            "scenario.yaml",
+            "--live",
+            "--target-url",
+            "http://localhost/run",
+            "--target-header",
+            "Authorization=Bearer token",
+            "--target-header",
+            "X-Tenant=local-dev",
+        ]
+    )
+
+    assert args.target_header == ["Authorization=Bearer token", "X-Tenant=local-dev"]
+
+
 def test_run_live_passes_timeout_to_adapter(capsys, monkeypatch, tmp_path):
     scenario_file = tmp_path / "scenario.yaml"
     scenario_file.write_text(VALID_SCENARIO, encoding="utf-8")
 
     captured_kwargs: dict[str, int] = {}
 
-    def fake_run_scenario_live(scenario, target_url, *, timeout):
+    def fake_run_scenario_live(scenario, target_url, *, timeout, headers):
         captured_kwargs["timeout"] = timeout
         raise AdapterError("stop after capturing timeout")
 
@@ -1273,13 +1293,51 @@ def test_run_live_passes_timeout_to_adapter(capsys, monkeypatch, tmp_path):
     assert captured_kwargs["timeout"] == 45
 
 
+def test_run_live_passes_headers_to_adapter(capsys, monkeypatch, tmp_path):
+    scenario_file = tmp_path / "scenario.yaml"
+    scenario_file.write_text(VALID_SCENARIO, encoding="utf-8")
+
+    captured_kwargs: dict[str, object] = {}
+
+    def fake_run_scenario_live(scenario, target_url, *, timeout, headers):
+        captured_kwargs["headers"] = headers
+        raise AdapterError("stop after capturing headers")
+
+    monkeypatch.setattr("agent_harness.cli.run_scenario_live", fake_run_scenario_live)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agent-harness",
+            "run",
+            str(scenario_file),
+            "--live",
+            "--target-url",
+            "http://127.0.0.1:1/run",
+            "--target-header",
+            "Authorization=Bearer test-secret",
+            "--target-header",
+            "X-Tenant=local-dev",
+        ],
+    )
+
+    exit_code = main()
+
+    assert exit_code == 1
+    assert captured_kwargs["headers"] == {
+        "Authorization": "Bearer test-secret",
+        "X-Tenant": "local-dev",
+    }
+    assert "test-secret" not in capsys.readouterr().err
+
+
 def test_run_live_defaults_timeout_to_thirty(capsys, monkeypatch, tmp_path):
     scenario_file = tmp_path / "scenario.yaml"
     scenario_file.write_text(VALID_SCENARIO, encoding="utf-8")
 
     captured_kwargs: dict[str, int] = {}
 
-    def fake_run_scenario_live(scenario, target_url, *, timeout):
+    def fake_run_scenario_live(scenario, target_url, *, timeout, headers):
         captured_kwargs["timeout"] = timeout
         raise AdapterError("stop after capturing timeout")
 
@@ -1325,6 +1383,55 @@ def test_target_timeout_must_be_positive(capsys, monkeypatch, tmp_path):
         main()
 
     assert "--target-timeout must be greater than zero" in capsys.readouterr().err
+
+
+def test_target_header_requires_live(capsys, monkeypatch, tmp_path):
+    scenario_file = tmp_path / "scenario.yaml"
+    scenario_file.write_text(VALID_SCENARIO, encoding="utf-8")
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agent-harness",
+            "run",
+            str(scenario_file),
+            "--trace-file",
+            "trace.json",
+            "--target-header",
+            "Authorization=Bearer test-secret",
+        ],
+    )
+
+    with pytest.raises(SystemExit):
+        main()
+
+    assert "--target-header can only be used with --live" in capsys.readouterr().err
+
+
+def test_target_header_rejects_malformed_header(capsys, monkeypatch, tmp_path):
+    scenario_file = tmp_path / "scenario.yaml"
+    scenario_file.write_text(VALID_SCENARIO, encoding="utf-8")
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agent-harness",
+            "run",
+            str(scenario_file),
+            "--live",
+            "--target-url",
+            "http://localhost/run",
+            "--target-header",
+            "Authorization",
+        ],
+    )
+
+    with pytest.raises(SystemExit):
+        main()
+
+    assert "--target-header header must use NAME=VALUE format" in capsys.readouterr().err
 
 
 def test_target_timeout_requires_live(capsys, monkeypatch, tmp_path):

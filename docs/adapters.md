@@ -726,6 +726,22 @@ agent-harness run scenarios/goal_hijack/basic.yaml \
   --target-url http://127.0.0.1:8000/run
 ```
 
+Targets that need request headers can receive them from the CLI instead of
+from the scenario file:
+
+```bash
+agent-harness run scenarios/goal_hijack/basic.yaml \
+  --live \
+  --target-url http://127.0.0.1:8000/run \
+  --target-header 'Authorization=Bearer token-from-env' \
+  --target-header 'X-Tenant=local-dev'
+```
+
+Use shell environment variables or your CI secret store to construct secret
+header values. Header values are sent only to the live HTTP target request;
+they are not added to the scenario payload, trace, or result JSON by the
+harness.
+
 Request body:
 
 ```json

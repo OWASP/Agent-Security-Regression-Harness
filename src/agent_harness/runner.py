@@ -70,9 +70,10 @@ def run_scenario_live(
     target_url: str,
     *,
     timeout: int = DEFAULT_HTTP_TIMEOUT_SECONDS,
+    headers: dict[str, str] | None = None,
 ) -> HarnessResult:
     """Run a scenario against a live HTTP target."""
-    trace = run_http_target(scenario, target_url, timeout=timeout)
+    trace = run_http_target(scenario, target_url, timeout=timeout, headers=headers)
     assertion_results = evaluate_assertions(scenario, trace)
     top_level_result = aggregate_assertion_results(assertion_results)
 
