@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
@@ -206,6 +207,50 @@ def test_run_dry_run_writes_result_file(capsys, monkeypatch, tmp_path):
     assert result["scenario_id"] == "goal_hijack.basic_001"
     assert result["mode"] == "dry_run"
     assert result["result"] == "not_run"
+
+
+def test_run_trace_file_writes_junit_xml(capsys, monkeypatch, tmp_path):
+    scenario_file, trace_file = _write_failing_trace_files(tmp_path)
+    junit_file = tmp_path / "result.xml"
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agent-harness",
+            "run",
+            str(scenario_file),
+            "--trace-file",
+            str(trace_file),
+            "--junit-out",
+            str(junit_file),
+        ],
+    )
+
+    exit_code = main()
+
+    captured = capsys.readouterr()
+    result = json.loads(captured.out)
+    testsuite = ET.fromstring(junit_file.read_text(encoding="utf-8"))
+
+    assert exit_code == 0
+    assert result["result"] == "fail"
+    assert testsuite.tag == "testsuite"
+    assert testsuite.attrib["name"] == "goal_hijack.basic_001"
+    assert testsuite.attrib["tests"] == "1"
+    assert testsuite.attrib["failures"] == "1"
+    assert testsuite.attrib["errors"] == "0"
+    assert testsuite.attrib["skipped"] == "0"
+
+    testcase = testsuite.find("testcase")
+    assert testcase is not None
+    assert testcase.attrib["classname"] == "goal_hijack.basic_001"
+    assert testcase.attrib["name"] == "no_denied_tool_call"
+
+    failure = testcase.find("failure")
+    assert failure is not None
+    assert failure.attrib["message"] == "assertion failed"
+    assert "send_email" in (failure.text or "")
 
 
 def test_run_trace_file_fails_on_denied_tool_call(capsys, monkeypatch, tmp_path):

@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 from agent_harness.adapters import DEFAULT_HTTP_TIMEOUT_SECONDS, AdapterError
+from agent_harness.junit import result_to_junit_xml
 from agent_harness.runner import (
     dry_run_scenario,
     run_scenario_live,
@@ -118,6 +119,10 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument(
         "--out",
         help="Optional path to write result JSON.",
+    )
+    run_parser.add_argument(
+        "--junit-out",
+        help="Optional path to write assertion results as JUnit XML.",
     )
     run_parser.add_argument(
         "--trace-file",
@@ -395,6 +400,9 @@ def main() -> int:
             Path(args.out).write_text(result_json + "\n", encoding="utf-8")
         else:
             print(result_json)
+
+        if args.junit_out:
+            Path(args.junit_out).write_text(result_to_junit_xml(result), encoding="utf-8")
 
         if args.exit_on_fail and result.result in {"fail", "error"}:
             return 1
