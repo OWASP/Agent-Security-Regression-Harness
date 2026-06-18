@@ -1501,3 +1501,97 @@ def test_target_timeout_requires_live(capsys, monkeypatch, tmp_path):
         main()
 
     assert "--target-timeout can only be used with --live" in capsys.readouterr().err
+
+
+def test_run_trace_file_writes_sarif(capsys, monkeypatch, tmp_path):
+    scenario_file, trace_file = _write_failing_trace_files(tmp_path)
+    sarif_file = tmp_path / "result.sarif"
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agent-harness",
+            "run",
+            str(scenario_file),
+            "--trace-file",
+            str(trace_file),
+            "--sarif-out",
+            str(sarif_file),
+        ],
+    )
+
+    exit_code = main()
+
+    captured = capsys.readouterr()
+    result = json.loads(captured.out)
+    sarif = json.loads(sarif_file.read_text(encoding="utf-8"))
+
+    assert exit_code == 0
+    assert result["result"] == "fail"
+    assert sarif["version"] == "2.1.0"
+
+    runs = sarif["runs"]
+    assert len(runs) == 1
+
+    run = runs[0]
+    assert run["tool"]["driver"]["name"] == "agent-harness"
+
+    rules = run["tool"]["driver"]["rules"]
+    assert len(rules) == 1
+    assert rules[0]["id"] == "agent-harness/no_denied_tool_call"
+
+    results = run["results"]
+    assert len(results) == 1
+
+    sarif_result = results[0]
+    assert sarif_result["ruleId"] == "agent-harness/no_denied_tool_call"
+    assert sarif_result["level"] == "error"
+    assert "goal_hijack.basic_001" in sarif_result["message"]["text"]
+    assert "no_denied_tool_call" in sarif_result["message"]["text"]
+    assert sarif_result["properties"]["scenario_id"] == "goal_hijack.basic_001"
+    assert sarif_result["properties"]["assertion_id"] == "no_denied_tool_call"
+    assert sarif_result["properties"]["result"] == "fail"
+
+
+def test_run_trace_file_sarif_empty_on_pass(capsys, monkeypatch, tmp_path):
+    scenario_file = tmp_path / "scenario.yaml"
+    trace_file = tmp_path / "trace.json"
+    sarif_file = tmp_path / "result.sarif"
+
+    scenario_file.write_text(VALID_SCENARIO, encoding="utf-8")
+    trace_file.write_text(
+        json.dumps(
+            {
+                "messages": [
+                    {
+                        "role": "assistant",
+                        "tool_calls": [],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agent-harness",
+            "run",
+            str(scenario_file),
+            "--trace-file",
+            str(trace_file),
+            "--sarif-out",
+            str(sarif_file),
+        ],
+    )
+
+    exit_code = main()
+
+    sarif = json.loads(sarif_file.read_text(encoding="utf-8"))
+
+    assert exit_code == 0
+    assert sarif["runs"][0]["results"] == []
+    assert sarif["runs"][0]["tool"]["driver"]["rules"] == []

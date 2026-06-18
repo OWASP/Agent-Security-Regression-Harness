@@ -20,6 +20,7 @@ from agent_harness.runner import (
     run_scenario_with_python_target,
     run_scenario_with_trace,
 )
+from agent_harness.sarif import result_to_sarif
 from agent_harness.scenario import ScenarioValidationError, load_scenario
 from agent_harness.trace import TraceValidationError, load_trace
 
@@ -202,6 +203,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--openai-agent-max-turns",
         type=int,
         help="Optional max_turns value passed to the OpenAI Agents SDK runner.",
+    )
+    run_parser.add_argument(
+        "--sarif-out",
+        help="Optional path to write assertion results as SARIF 2.1.0.",
     )
     run_parser.add_argument(
         "--exit-on-fail",
@@ -403,6 +408,9 @@ def main() -> int:
 
         if args.junit_out:
             Path(args.junit_out).write_text(result_to_junit_xml(result), encoding="utf-8")
+
+        if args.sarif_out:
+            Path(args.sarif_out).write_text(result_to_sarif(result), encoding="utf-8")
 
         if args.exit_on_fail and result.result in {"fail", "error"}:
             return 1
