@@ -331,6 +331,31 @@ def test_run_http_target_defaults_to_thirty_second_timeout(mock_urlopen):
 
 
 @patch("urllib.request.urlopen")
+def test_run_http_target_sends_custom_headers(mock_urlopen):
+    """Custom HTTP headers are sent to the target request only."""
+    scenario = make_scenario(assertions=[])
+
+    mock_response = MagicMock()
+    mock_response.read.return_value = b'{"messages": [], "tool_calls": [], "events": []}'
+    mock_response.__enter__.return_value = mock_response
+    mock_urlopen.return_value = mock_response
+
+    run_http_target(
+        scenario,
+        "http://127.0.0.1:8000/run",
+        headers={
+            "Authorization": "Bearer test-secret",
+            "X-Tenant": "local-dev",
+        },
+    )
+
+    http_request = mock_urlopen.call_args.args[0]
+    assert http_request.get_header("Authorization") == "Bearer test-secret"
+    assert http_request.get_header("X-tenant") == "local-dev"
+    assert b"test-secret" not in http_request.data
+
+
+@patch("urllib.request.urlopen")
 def test_run_http_target_reports_timeout_errors(mock_urlopen):
     """A socket timeout surfaces as a clear AdapterError mentioning the limit."""
     mock_urlopen.side_effect = error.URLError(TimeoutError("timed out"))

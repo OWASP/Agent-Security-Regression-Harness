@@ -21,6 +21,38 @@ The `security-regression` job in `.github/workflows/tests.yml`:
 8. Reads every file in `regression_demo/` and exits 1 if any does not have `"result": "fail"`
 9. Uploads result JSON files as artifacts (runs even on failure)
 
+## Validating scenarios
+
+`agent-harness validate` accepts scenario files, directories, and glob patterns.
+Directories are searched recursively for `.yaml` and `.yml` files. The command
+prints one line per scenario, prints a summary, and exits 1 if any scenario is
+invalid.
+
+Validate one file:
+
+```bash
+agent-harness validate scenarios/goal_hijack/basic.yaml
+```
+
+Validate every scenario in a directory:
+
+```bash
+agent-harness validate scenarios/
+```
+
+Validate a glob, including nested folders:
+
+```bash
+agent-harness validate "scenarios/**/*.yaml"
+```
+
+Example CI step:
+
+```yaml
+- name: Validate security scenarios
+  run: agent-harness validate "scenarios/**/*.yaml"
+```
+
 ## How pass and fail actually work
 
 `agent-harness run` writes machine-readable result JSON to the path you give
@@ -151,7 +183,10 @@ When you add a scenario to this repository, add a matching trace file to
 
 Add the scenario path to the exclusion list in the dry-run step to avoid running it twice.
 
-The result-checking steps pick up new output files automatically.
+The result-checking steps pick up new output files automatically. For `regression_demo/` 
+entries, also add the expected filename to `.github/workflows/tests.yml` to the expected_files 
+list in the "Fail if any expected regression-demo file is missing" step to prevent the gate 
+from passing vacuously if the demo step stops emitting.
 
 ## Related
 

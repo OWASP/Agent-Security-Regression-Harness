@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, cast
+
 from agent_harness.adapters import (
     DEFAULT_HTTP_TIMEOUT_SECONDS,
     load_python_callable,
@@ -19,6 +21,9 @@ from agent_harness.openai_agents_adapter import run_openai_agents_target
 from agent_harness.result import AssertionResult, HarnessResult, aggregate_assertion_results
 from agent_harness.scenario import Scenario
 from agent_harness.trace import Trace
+
+if TYPE_CHECKING:
+    from agent_harness.mcp_host import MCPHostTarget
 
 
 def dry_run_scenario(scenario: Scenario) -> HarnessResult:
@@ -65,9 +70,10 @@ def run_scenario_live(
     target_url: str,
     *,
     timeout: int = DEFAULT_HTTP_TIMEOUT_SECONDS,
+    headers: dict[str, str] | None = None,
 ) -> HarnessResult:
     """Run a scenario against a live HTTP target."""
-    trace = run_http_target(scenario, target_url, timeout=timeout)
+    trace = run_http_target(scenario, target_url, timeout=timeout, headers=headers)
     assertion_results = evaluate_assertions(scenario, trace)
     top_level_result = aggregate_assertion_results(assertion_results)
 
@@ -140,6 +146,33 @@ def run_scenario_with_mcp_target(
         result=top_level_result,
         assertions=assertion_results,
         trace=trace,
+    )
+
+
+def run_scenario_with_mcp_host_target(
+    scenario: Scenario,
+    mcp_host_target: str,
+    runtime_config_path: str,
+) -> HarnessResult:
+    """Run a scenario against a local target through the MCP stdio host."""
+    from agent_harness import mcp_host, mcp_runtime
+
+    target_callable = cast("MCPHostTarget", load_python_callable(mcp_host_target))
+    runtime_config = mcp_runtime.load_mcp_runtime_config(runtime_config_path)
+    execution = mcp_host.run_mcp_host_target(
+        scenario,
+        target_callable,
+        runtime_config,
+    )
+    assertion_results = evaluate_assertions(scenario, execution.trace)
+    top_level_result = aggregate_assertion_results(assertion_results)
+
+    return HarnessResult(
+        scenario_id=scenario.id,
+        mode="live",
+        result=top_level_result,
+        assertions=assertion_results,
+        trace=execution.trace,
     )
 
 

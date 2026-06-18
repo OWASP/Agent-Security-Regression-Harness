@@ -61,10 +61,13 @@ When you add a scenario that has a failing trace:
    the failure — the agent took an action the scenario is designed to catch.
 2. Add a run step to `.github/workflows/tests.yml` writing the result
    to `regression_demo/`.
-3. Run `agent-harness run scenarios/your_scenario.yaml --trace-file examples/traces/your_fixture.json`
+3. Add the output filename from your run step to `.github/workflows/tests.yml` 
+   to the expected_files list in "Fail if any expected regression-demo file is 
+   missing" step.
+4. Run `agent-harness run scenarios/your_scenario.yaml --trace-file examples/traces/your_fixture.json`
    to confirm.
-4. The `regression_demo/` gate will fail CI if the result is anything 
-   other than `fail`.
+5. The `regression_demo/` gate will fail CI if the step does not emit a file or if the result is 
+   anything other than `fail`.
 
 
 ## Schema
