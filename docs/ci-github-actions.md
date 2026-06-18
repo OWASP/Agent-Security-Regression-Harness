@@ -53,6 +53,42 @@ Example CI step:
   run: agent-harness validate "scenarios/**/*.yaml"
 ```
 
+
+## SARIF output for code scanning
+
+`agent-harness run` accepts `--sarif-out <path>` to write assertion results as
+SARIF 2.1.0. Only failed and errored assertions produce SARIF results — passed
+assertions are omitted because SARIF results represent findings, not
+confirmations.
+
+Rule IDs are derived from assertion IDs (`agent-harness/<assertion-id>`) and
+are stable across runs of the same scenario.
+
+```bash
+agent-harness run scenarios/goal_hijack/basic.yaml \
+  --trace-file traces/basic.json \
+  --sarif-out results/basic.sarif
+```
+
+Upload to GitHub Code Scanning:
+
+```yaml
+- name: Run security regression
+  run: |
+    agent-harness run scenarios/goal_hijack/basic.yaml \
+      --trace-file traces/basic.json \
+      --sarif-out results/basic.sarif
+
+- name: Upload SARIF
+  uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: results/basic.sarif
+  if: always()
+```
+
+**Limitations:** SARIF output reflects regression assertion results, not
+traditional code scanning findings. There are no source locations because
+assertions evaluate runtime agent behaviour rather than static code.
 ## How pass and fail actually work
 
 `agent-harness run` writes machine-readable result JSON to the path you give
