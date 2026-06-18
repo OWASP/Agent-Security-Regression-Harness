@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   systems while preserving the existing result JSON output.
 - **MCP host CLI wiring** — add `agent-harness run --mcp-host-target ...`
   with `--mcp-runtime-config ...` for local stdio MCP host runs.
+- **`--target-header` flag** — pass repeatable `NAME=VALUE` HTTP headers to live
+  targets via `agent-harness run --live`; header values are sent only to the
+  request and are never stored in scenarios, traces, or result JSON.
+- **Batch scenario validation** — `agent-harness validate` now accepts one or
+  more files, directories (searched recursively for `.yaml`/`.yml`), and glob
+  patterns, printing one line per scenario plus a summary and exiting non-zero
+  if any are invalid.
 - **`approval_required` assertion** — fail when a sensitive action lacks a valid 
   approval event from a trusted `input.context` source. 
 - **`--target-timeout` flag** — configure the request timeout in seconds for live
