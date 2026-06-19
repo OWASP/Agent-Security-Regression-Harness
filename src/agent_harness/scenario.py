@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+# Scenario IDs are used as filesystem path components (e.g. the suite runner
+# maps a scenario to ``<trace-dir>/<id>.json`` and writes ``<out-dir>/<id>.json``).
+# Constrain them to a filename-safe charset so an ID can never traverse paths.
+SCENARIO_ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 
 VALID_CATEGORIES = {
     "goal_hijack",
@@ -89,6 +95,11 @@ def validate_scenario_data(data: Any) -> Scenario:
 
     if not isinstance(scenario_id, str) or not scenario_id.strip():
         raise ScenarioValidationError("id must be a non-empty string")
+
+    if not SCENARIO_ID_RE.fullmatch(scenario_id):
+        raise ScenarioValidationError(
+            "id must contain only letters, digits, '.', '_', or '-'"
+        )
 
     if not isinstance(title, str) or not title.strip():
         raise ScenarioValidationError("title must be a non-empty string")

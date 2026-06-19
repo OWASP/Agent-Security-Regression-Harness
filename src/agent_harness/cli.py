@@ -19,6 +19,7 @@ from agent_harness.runner import (
     run_scenario_with_openai_agent,
     run_scenario_with_python_target,
     run_scenario_with_trace,
+    run_suite,
 )
 from agent_harness.scenario import ScenarioValidationError, load_scenario
 from agent_harness.trace import TraceValidationError, load_trace
@@ -101,6 +102,40 @@ def build_parser() -> argparse.ArgumentParser:
         "scenario_paths",
         nargs="+",
         help="Scenario YAML file, directory, or glob pattern to validate.",
+    )
+
+    suite_parser = subparsers.add_parser(
+        "suite",
+        help="Run a directory of scenarios against trace files and aggregate results.",
+    )
+    suite_parser.add_argument(
+        "scenario_paths",
+        nargs="+",
+        help="Scenario YAML files, directories, or glob patterns to run.",
+    )
+    suite_parser.add_argument(
+        "--trace-dir",
+        required=True,
+        help=(
+            "Directory of trace JSON files. Each scenario is matched to "
+            "'<trace-dir>/<scenario_id>.json'."
+        ),
+    )
+    suite_parser.add_argument(
+        "--out-dir",
+        help=(
+            "Optional directory to write per-scenario result JSON "
+            "('<scenario_id>.json') plus an aggregate 'summary.json'."
+        ),
+    )
+    suite_parser.add_argument(
+        "--exit-on-fail",
+        action="store_true",
+        help=(
+            "Exit with code 1 if any scenario's result is 'fail' or 'error' "
+            "(including missing trace mappings). Without this flag, 'suite' "
+            "exits 0 and the aggregate summary JSON is the source of truth."
+        ),
     )
 
     run_parser = subparsers.add_parser(
@@ -248,6 +283,53 @@ def main() -> int:
         print(f"summary: {valid_count} valid, {invalid_count} invalid")
         return 1 if invalid_count else 0
 
+    if args.command == "suite":
+        scenario_files = _discover_scenario_files(args.scenario_paths)
+        if not scenario_files:
+            print("invalid: no scenario files matched", file=sys.stderr)
+            return 1
+
+        trace_dir = Path(args.trace_dir)
+        if not trace_dir.is_dir():
+            print(
+                f"invalid: trace directory does not exist: {trace_dir}",
+                file=sys.stderr,
+            )
+            return 1
+
+        suite_result = run_suite(scenario_files, trace_dir)
+
+        if args.out_dir:
+            out_dir = Path(args.out_dir)
+            out_dir.mkdir(parents=True, exist_ok=True)
+            for entry in suite_result.entries:
+                if entry.scenario_id is None or entry.detail is None:
+                    continue
+                result_path = out_dir / f"{entry.scenario_id}.json"
+                result_path.write_text(
+                    entry.detail.to_json() + "\n", encoding="utf-8"
+                )
+            (out_dir / "summary.json").write_text(
+                suite_result.to_json() + "\n", encoding="utf-8"
+            )
+
+        print(suite_result.to_json())
+
+        counts = suite_result.counts
+        print(
+            "summary: "
+            f"{counts['total']} scenarios, "
+            f"{counts['pass']} pass, "
+            f"{counts['fail']} fail, "
+            f"{counts['error']} error, "
+            f"{counts['not_run']} not_run",
+            file=sys.stderr,
+        )
+
+        if args.exit_on_fail and suite_result.result in {"fail", "error"}:
+            return 1
+
+        return 0
 
     if args.command == "run":
         selected_modes = [

@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://owasp.org/schemas/agent-security-regression-harness/suite_result.schema.json",
+  "title": "OWASP Agent Security Regression Harness Suite Result",
+  "version": 1,
+  "type": "object",
+  "required": [
+    "result",
+    "counts",
+    "scenarios"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "result": {
+      "type": "string",
+      "enum": [
+        "pass",
+        "fail",
+        "error",
+        "not_run"
+      ]
+    },
+    "counts": {
+      "type": "object",
+      "required": [
+        "total",
+        "pass",
+        "fail",
+        "error",
+        "not_run"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pass": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fail": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "error": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "not_run": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "scenarios": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "scenario_path",
+          "result"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "scenario_path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scenario_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "category": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "trace_path": {
+            "type": "string"
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "error",
+              "not_run"
+            ]
+          },
+          "error_reason": {
+            "type": "string",
+            "enum": [
+              "missing_trace",
+              "invalid_scenario",
+              "invalid_trace",
+              "duplicate_scenario_id"
+            ]
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  }
+}

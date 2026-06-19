@@ -1501,3 +1501,290 @@ def test_target_timeout_requires_live(capsys, monkeypatch, tmp_path):
         main()
 
     assert "--target-timeout can only be used with --live" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# Suite runner
+# ---------------------------------------------------------------------------
+
+PASSING_TRACE = json.dumps({"messages": [], "tool_calls": [], "events": []})
+FAILING_TRACE = json.dumps(
+    {
+        "messages": [],
+        "tool_calls": [{"name": "send_email", "arguments": {"to": "x@example.com"}}],
+        "events": [],
+    }
+)
+
+
+def _scenario_with_id(scenario_id: str) -> str:
+    return VALID_SCENARIO.replace("goal_hijack.basic_001", scenario_id)
+
+
+def _build_suite(tmp_path):
+    scenarios_dir = tmp_path / "scenarios"
+    scenarios_dir.mkdir()
+    trace_dir = tmp_path / "traces"
+    trace_dir.mkdir()
+    return scenarios_dir, trace_dir
+
+
+def test_suite_all_pass_outputs_summary(capsys, monkeypatch, tmp_path):
+    scenarios_dir, trace_dir = _build_suite(tmp_path)
+    (scenarios_dir / "a.yaml").write_text(
+        _scenario_with_id("goal_hijack.alpha_001"), encoding="utf-8"
+    )
+    (scenarios_dir / "b.yaml").write_text(
+        _scenario_with_id("goal_hijack.beta_001"), encoding="utf-8"
+    )
+    (trace_dir / "goal_hijack.alpha_001.json").write_text(PASSING_TRACE)
+    (trace_dir / "goal_hijack.beta_001.json").write_text(PASSING_TRACE)
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agent-harness",
+            "suite",
+            str(scenarios_dir),
+            "--trace-dir",
+            str(trace_dir),
+        ],
+    )
+
+    exit_code = main()
+
+    captured = capsys.readouterr()
+    summary = json.loads(captured.out)
+
+    assert exit_code == 0
+    assert summary["result"] == "pass"
+    assert summary["counts"] == {
+        "total": 2,
+        "pass": 2,
+        "fail": 0,
+        "error": 0,
+        "not_run": 0,
+    }
+    ids = {entry["scenario_id"] for entry in summary["scenarios"]}
+    assert ids == {"goal_hijack.alpha_001", "goal_hijack.beta_001"}
+
+
+def test_suite_partial_failure_exits_one_with_flag(capsys, monkeypatch, tmp_path):
+    scenarios_dir, trace_dir = _build_suite(tmp_path)
+    (scenarios_dir / "ok.yaml").write_text(
+        _scenario_with_id("goal_hijack.ok_001"), encoding="utf-8"
+    )
+    (scenarios_dir / "bad.yaml").write_text(
+        _scenario_with_id("goal_hijack.bad_001"), encoding="utf-8"
+    )
+    (trace_dir / "goal_hijack.ok_001.json").write_text(PASSING_TRACE)
+    (trace_dir / "goal_hijack.bad_001.json").write_text(FAILING_TRACE)
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agent-harness",
+            "suite",
+            str(scenarios_dir),
+            "--trace-dir",
+            str(trace_dir),
+            "--exit-on-fail",
+        ],
+    )
+
+    exit_code = main()
+
+    summary = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 1
+    assert summary["result"] == "fail"
+    assert summary["counts"]["pass"] == 1
+    assert summary["counts"]["fail"] == 1
+
+
+def test_suite_without_flag_exits_zero_on_failure(capsys, monkeypatch, tmp_path):
+    scenarios_dir, trace_dir = _build_suite(tmp_path)
+    (scenarios_dir / "bad.yaml").write_text(
+        _scenario_with_id("goal_hijack.bad_001"), encoding="utf-8"
+    )
+    (trace_dir / "goal_hijack.bad_001.json").write_text(FAILING_TRACE)
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["agent-harness", "suite", str(scenarios_dir), "--trace-dir", str(trace_dir)],
+    )
+
+    exit_code = main()
+    summary = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 0
+    assert summary["result"] == "fail"
+
+
+def test_suite_missing_trace_is_error(capsys, monkeypatch, tmp_path):
+    scenarios_dir, trace_dir = _build_suite(tmp_path)
+    (scenarios_dir / "ok.yaml").write_text(
+        _scenario_with_id("goal_hijack.ok_001"), encoding="utf-8"
+    )
+    (scenarios_dir / "orphan.yaml").write_text(
+        _scenario_with_id("goal_hijack.orphan_001"), encoding="utf-8"
+    )
+    (trace_dir / "goal_hijack.ok_001.json").write_text(PASSING_TRACE)
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agent-harness",
+            "suite",
+            str(scenarios_dir),
+            "--trace-dir",
+            str(trace_dir),
+            "--exit-on-fail",
+        ],
+    )
+
+    exit_code = main()
+    summary = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 1
+    assert summary["result"] == "error"
+    orphan = next(
+        e for e in summary["scenarios"] if e["scenario_id"] == "goal_hijack.orphan_001"
+    )
+    assert orphan["result"] == "error"
+    assert orphan["error_reason"] == "missing_trace"
+
+
+def test_suite_invalid_scenario_does_not_abort_suite(capsys, monkeypatch, tmp_path):
+    scenarios_dir, trace_dir = _build_suite(tmp_path)
+    (scenarios_dir / "a_broken.yaml").write_text("id: broken.scenario\n", encoding="utf-8")
+    (scenarios_dir / "b_ok.yaml").write_text(
+        _scenario_with_id("goal_hijack.ok_001"), encoding="utf-8"
+    )
+    (trace_dir / "goal_hijack.ok_001.json").write_text(PASSING_TRACE)
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["agent-harness", "suite", str(scenarios_dir), "--trace-dir", str(trace_dir)],
+    )
+
+    exit_code = main()
+    summary = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 0
+    assert summary["result"] == "error"
+    assert summary["counts"]["total"] == 2
+    assert summary["counts"]["pass"] == 1
+    assert summary["counts"]["error"] == 1
+    broken = next(
+        e for e in summary["scenarios"] if e.get("error_reason") == "invalid_scenario"
+    )
+    assert "scenario_id" not in broken
+
+
+def test_suite_duplicate_scenario_id_is_error(capsys, monkeypatch, tmp_path):
+    scenarios_dir, trace_dir = _build_suite(tmp_path)
+    (scenarios_dir / "first.yaml").write_text(
+        _scenario_with_id("goal_hijack.dupe_001"), encoding="utf-8"
+    )
+    (scenarios_dir / "second.yaml").write_text(
+        _scenario_with_id("goal_hijack.dupe_001"), encoding="utf-8"
+    )
+    (trace_dir / "goal_hijack.dupe_001.json").write_text(PASSING_TRACE)
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["agent-harness", "suite", str(scenarios_dir), "--trace-dir", str(trace_dir)],
+    )
+
+    exit_code = main()
+    summary = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 0
+    reasons = {e.get("error_reason") for e in summary["scenarios"]}
+    assert "duplicate_scenario_id" in reasons
+    assert summary["counts"]["error"] == 1
+
+
+def test_suite_empty_match_returns_one(capsys, monkeypatch, tmp_path):
+    scenarios_dir, trace_dir = _build_suite(tmp_path)
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["agent-harness", "suite", str(scenarios_dir), "--trace-dir", str(trace_dir)],
+    )
+
+    exit_code = main()
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert captured.out == ""
+    assert "no scenario files matched" in captured.err
+
+
+def test_suite_missing_trace_dir_returns_one(capsys, monkeypatch, tmp_path):
+    scenarios_dir, _ = _build_suite(tmp_path)
+    (scenarios_dir / "a.yaml").write_text(
+        _scenario_with_id("goal_hijack.alpha_001"), encoding="utf-8"
+    )
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agent-harness",
+            "suite",
+            str(scenarios_dir),
+            "--trace-dir",
+            str(tmp_path / "does_not_exist"),
+        ],
+    )
+
+    exit_code = main()
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert "trace directory does not exist" in captured.err
+
+
+def test_suite_writes_per_scenario_and_summary_files(capsys, monkeypatch, tmp_path):
+    scenarios_dir, trace_dir = _build_suite(tmp_path)
+    out_dir = tmp_path / "results"
+    (scenarios_dir / "a.yaml").write_text(
+        _scenario_with_id("goal_hijack.alpha_001"), encoding="utf-8"
+    )
+    (trace_dir / "goal_hijack.alpha_001.json").write_text(PASSING_TRACE)
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agent-harness",
+            "suite",
+            str(scenarios_dir),
+            "--trace-dir",
+            str(trace_dir),
+            "--out-dir",
+            str(out_dir),
+        ],
+    )
+
+    exit_code = main()
+
+    assert exit_code == 0
+    per_scenario = json.loads(
+        (out_dir / "goal_hijack.alpha_001.json").read_text(encoding="utf-8")
+    )
+    assert per_scenario["scenario_id"] == "goal_hijack.alpha_001"
+    assert per_scenario["result"] == "pass"
+
+    summary = json.loads((out_dir / "summary.json").read_text(encoding="utf-8"))
+    assert summary["result"] == "pass"
+    assert summary["counts"]["total"] == 1
