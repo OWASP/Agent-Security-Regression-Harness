@@ -113,6 +113,8 @@ _BOTH_REJECT_CASES = [
     pytest.param(_mutate(_valid_scenario(), category="not_a_real_category"), id="bad-category"),
     pytest.param(_mutate(_valid_scenario(), severity="nuclear"), id="bad-severity"),
     pytest.param(_mutate(_valid_scenario(), id=""), id="empty-id"),
+    pytest.param(_mutate(_valid_scenario(), id="../../etc/passwd"), id="path-traversal-id"),
+    pytest.param(_mutate(_valid_scenario(), id="goal_hijack/basic"), id="slash-in-id"),
     pytest.param(_mutate(_valid_scenario(), title=""), id="empty-title"),
     pytest.param(_mutate(_valid_scenario(), assertions=[]), id="empty-assertions"),
     pytest.param(

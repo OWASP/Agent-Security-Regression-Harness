@@ -98,6 +98,76 @@ correctly, so both gate steps treat it as a CI failure.
 harness writes JSON → gate (flag or post-scan) decides exit code → job pass/fail
 ```
 
+## Running a whole suite at once
+
+`agent-harness suite` runs many scenarios against a directory of trace files in
+one invocation and emits a single aggregate summary. It keeps single-scenario
+`run` unchanged — use `suite` when you have a folder of scenarios to gate on.
+
+```bash
+agent-harness suite scenarios/ \
+  --trace-dir traces/ \
+  --out-dir results/ \
+  --exit-on-fail
+```
+
+### Directory conventions
+
+- **Scenarios**: the positional arguments accept scenario files, directories
+  (searched recursively for `.yaml`/`.yml`), and glob patterns — the same
+  discovery rules as `agent-harness validate`.
+- **Traces**: each scenario is mapped to a trace file by its **scenario id**:
+  `<trace-dir>/<scenario_id>.json`. For a scenario whose id is
+  `goal_hijack.basic_001`, the suite looks for
+  `<trace-dir>/goal_hijack.basic_001.json`. Mapping by id (rather than by file
+  path) keeps the mapping stable when scenario files move, and scenario ids are
+  constrained to a filename-safe charset (`[A-Za-z0-9._-]`) so a trace lookup
+  can never escape `--trace-dir`.
+
+> Note: this id-based convention is specific to `suite`. The example traces
+> under `examples/traces/` use descriptive names and are not laid out this way;
+> to use them with `suite`, copy or rename each to `<scenario_id>.json`.
+
+### Output
+
+- `--out-dir` writes one `<scenario_id>.json` per scenario that ran (the same
+  shape as `agent-harness run`), plus an aggregate `summary.json`.
+- The aggregate summary is always printed to stdout. It contains the overall
+  `result`, per-status `counts` (`total`, `pass`, `fail`, `error`, `not_run`),
+  and one `scenarios` entry per scenario with its id, category, severity, the
+  trace path used, and the full `detail` result. This makes the summary a
+  self-contained audit record. It validates against
+  `schemas/suite_result.schema.json`.
+
+### Resilience and gating
+
+The suite never lets one broken input hide the rest. A scenario that cannot run
+is recorded as a per-scenario `error` (with an `error_reason`) and the suite
+continues:
+
+| `error_reason` | Cause |
+|----------------|-------|
+| `missing_trace` | No `<scenario_id>.json` under `--trace-dir` |
+| `invalid_trace` | The trace file exists but is malformed JSON |
+| `invalid_scenario` | The scenario YAML failed validation |
+| `duplicate_scenario_id` | Two discovered scenarios share an id |
+
+Exit behavior composes with CI the same way as `run`:
+
+- Without `--exit-on-fail`, `suite` always exits 0 and the summary JSON is the
+  source of truth.
+- With `--exit-on-fail`, `suite` exits 1 if **any** scenario is `fail` or
+  `error` — so a missing trace mapping or an unparseable scenario fails the
+  build rather than silently reducing coverage.
+- If the scenario arguments match nothing, or `--trace-dir` does not exist,
+  `suite` exits 1 immediately. An empty match is treated as an error, not a
+  vacuous pass.
+
+A suite where every scenario comes back `not_run` (for example, only
+recognized-but-unimplemented assertions) aggregates to `not_run` and does **not**
+fail under `--exit-on-fail`. Watch the `not_run` count in the summary so a
+green suite does not hide a suite that tested nothing.
+
 ## A note on `not_run`
 
 Some assertions are recognized by the harness but not fully implemented yet.

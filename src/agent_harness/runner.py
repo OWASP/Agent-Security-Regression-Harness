@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from agent_harness.adapters import (
@@ -18,9 +20,15 @@ from agent_harness.langchain_adapter import (
 )
 from agent_harness.mcp_adapter import run_mcp_target
 from agent_harness.openai_agents_adapter import run_openai_agents_target
-from agent_harness.result import AssertionResult, HarnessResult, aggregate_assertion_results
-from agent_harness.scenario import Scenario
-from agent_harness.trace import Trace
+from agent_harness.result import (
+    AssertionResult,
+    HarnessResult,
+    SuiteEntry,
+    SuiteResult,
+    aggregate_assertion_results,
+)
+from agent_harness.scenario import Scenario, ScenarioValidationError, load_scenario
+from agent_harness.trace import Trace, TraceValidationError, load_trace
 
 if TYPE_CHECKING:
     from agent_harness.mcp_host import MCPHostTarget
@@ -199,3 +207,142 @@ def run_scenario_with_langchain_target(
         assertions=assertion_results,
         trace=trace,
     )
+
+
+def _suite_error_result(scenario: Scenario, evidence: str) -> HarnessResult:
+    """Build an ``error`` HarnessResult for a scenario that could not run."""
+    return HarnessResult(
+        scenario_id=scenario.id,
+        mode="trace",
+        result="error",
+        assertions=[AssertionResult(id="suite", result="error", evidence=evidence)],
+        trace=Trace(),
+    )
+
+
+def _resolve_within(base: Path, name: str) -> Path:
+    """Join ``name`` onto ``base`` and confirm it stays inside ``base``.
+
+    Defense in depth on top of scenario-id charset validation: even if an id
+    somehow contained path separators, the suite must never read or write
+    outside the configured directory.
+    """
+    candidate = (base / name).resolve()
+    if not candidate.is_relative_to(base.resolve()):
+        raise ValueError(f"resolved path escapes directory: {name!r}")
+    return candidate
+
+
+def run_suite(
+    scenario_paths: Iterable[str | Path],
+    trace_dir: str | Path,
+) -> SuiteResult:
+    """Run a directory of scenarios against trace files in ``trace_dir``.
+
+    Each scenario is mapped to ``<trace_dir>/<scenario_id>.json``. A scenario
+    that cannot run (invalid YAML, duplicate id, missing trace, or malformed
+    trace) is recorded as a per-scenario ``error`` and the suite continues, so
+    one broken input never hides the results of the others.
+    """
+    trace_dir_path = Path(trace_dir)
+    entries: list[SuiteEntry] = []
+    seen_ids: dict[str, str] = {}
+
+    for scenario_path in scenario_paths:
+        path_str = str(scenario_path)
+
+        try:
+            scenario = load_scenario(scenario_path)
+        except ScenarioValidationError as exc:
+            entries.append(
+                SuiteEntry(
+                    scenario_path=path_str,
+                    result="error",
+                    error_reason="invalid_scenario",
+                    evidence=str(exc),
+                )
+            )
+            continue
+
+        if scenario.id in seen_ids:
+            entries.append(
+                SuiteEntry(
+                    scenario_path=path_str,
+                    scenario_id=scenario.id,
+                    category=scenario.category,
+                    severity=scenario.severity,
+                    result="error",
+                    error_reason="duplicate_scenario_id",
+                    evidence=f"scenario id already used by {seen_ids[scenario.id]}",
+                )
+            )
+            continue
+        seen_ids[scenario.id] = path_str
+
+        try:
+            trace_path = _resolve_within(trace_dir_path, f"{scenario.id}.json")
+        except ValueError as exc:
+            entries.append(
+                SuiteEntry(
+                    scenario_path=path_str,
+                    scenario_id=scenario.id,
+                    category=scenario.category,
+                    severity=scenario.severity,
+                    result="error",
+                    error_reason="invalid_scenario",
+                    evidence=str(exc),
+                    detail=_suite_error_result(scenario, str(exc)),
+                )
+            )
+            continue
+
+        if not trace_path.is_file():
+            evidence = f"no trace file found at {trace_path}"
+            entries.append(
+                SuiteEntry(
+                    scenario_path=path_str,
+                    scenario_id=scenario.id,
+                    category=scenario.category,
+                    severity=scenario.severity,
+                    trace_path=str(trace_path),
+                    result="error",
+                    error_reason="missing_trace",
+                    evidence=evidence,
+                    detail=_suite_error_result(scenario, evidence),
+                )
+            )
+            continue
+
+        try:
+            trace = load_trace(trace_path)
+        except TraceValidationError as exc:
+            evidence = f"invalid trace: {exc}"
+            entries.append(
+                SuiteEntry(
+                    scenario_path=path_str,
+                    scenario_id=scenario.id,
+                    category=scenario.category,
+                    severity=scenario.severity,
+                    trace_path=str(trace_path),
+                    result="error",
+                    error_reason="invalid_trace",
+                    evidence=evidence,
+                    detail=_suite_error_result(scenario, evidence),
+                )
+            )
+            continue
+
+        harness_result = run_scenario_with_trace(scenario, trace)
+        entries.append(
+            SuiteEntry(
+                scenario_path=path_str,
+                scenario_id=scenario.id,
+                category=scenario.category,
+                severity=scenario.severity,
+                trace_path=str(trace_path),
+                result=harness_result.result,
+                detail=harness_result,
+            )
+        )
+
+    return SuiteResult(entries=entries)

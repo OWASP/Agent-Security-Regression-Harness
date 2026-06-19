@@ -14,7 +14,7 @@ pip install -e . && agent-harness run scenarios/goal_hijack/basic.yaml --dry-run
 
 ```python
 src/agent_harness/
-  cli.py          # Entry point. argparse-based. Subcommands: version, validate, run
+  cli.py          # Entry point. argparse-based. Subcommands: version, validate, run, suite
   scenario.py     # Loads & validates YAML scenarios (Scenario dataclass)
   trace.py        # Trace dataclass (messages, tool_calls, events)
   assertions.py   # Evaluates assertions against traces. Each assertion = one function
