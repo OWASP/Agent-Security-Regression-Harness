@@ -132,6 +132,10 @@ def build_parser() -> argparse.ArgumentParser:
             "of assertion outcomes."
         ),
     )
+    run_parser.add_argument(
+        "--sarif-out",
+        help="Write SARIF v2.1.0 output to this path for GitHub code scanning integration.",
+    )
 
     return parser
 
@@ -274,6 +278,10 @@ def main() -> int:
             Path(args.out).write_text(result_json + "\n", encoding="utf-8")
         else:
             print(result_json)
+
+        if hasattr(args, "sarif_out") and args.sarif_out:
+            from agent_harness.sarif import write_sarif
+            write_sarif(result, scenario.id, args.sarif_out)
 
         if args.exit_on_fail and result.result in {"fail", "error"}:
             return 1
