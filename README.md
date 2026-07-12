@@ -451,7 +451,7 @@ Currently supported:
 - Python callable target execution
 - OpenAI Agents SDK target execution
 - MVP MCP workflow target execution
-- MVP LangChain/LangGraph invoke target execution
+- LangChain/LangGraph invoke execution and opt-in synchronous update streams
 - JSON result output
 - `no_denied_tool_call` assertion
 - `goal_integrity` assertion
@@ -459,7 +459,7 @@ Currently supported:
 Not implemented yet:
 
 - Full MCP host/runtime adapter support
-- Broad LangChain/LangGraph adapter coverage beyond the synchronous invoke MVP
+- Broader LangChain/LangGraph callback, async-stream, and token-stream coverage
 - Full assertion library
 - Secret disclosure detection
 - JUnit output

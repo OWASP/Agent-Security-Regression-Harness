@@ -181,6 +181,7 @@ def run_scenario_with_langchain_target(
     langchain_target: str,
     *,
     goal_event_id: str | None = None,
+    stream_updates: bool = False,
 ) -> HarnessResult:
     """Run a scenario against a LangChain/LangGraph target."""
     target = load_langchain_target(langchain_target)
@@ -188,6 +189,7 @@ def run_scenario_with_langchain_target(
         scenario,
         target,
         goal_event_id=goal_event_id,
+        stream_updates=stream_updates,
     )
     assertion_results = evaluate_assertions(scenario, trace)
     top_level_result = aggregate_assertion_results(assertion_results)

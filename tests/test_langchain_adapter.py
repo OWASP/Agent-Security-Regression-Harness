@@ -70,6 +70,23 @@ class FakeRunnable:
         return self.result
 
 
+class FakeStreamRunnable:
+    """Tiny fake for LangGraph's synchronous update-stream shape."""
+
+    def __init__(self, updates):
+        self.updates = updates
+        self.calls = []
+
+    def stream(self, runnable_input, **kwargs):
+        self.calls.append(
+            {
+                "input": runnable_input,
+                "kwargs": kwargs,
+            }
+        )
+        yield from self.updates
+
+
 def test_build_langchain_input_serializes_scenario_payload_as_user_message():
     scenario = make_langchain_scenario()
 
@@ -150,6 +167,135 @@ def test_run_langchain_target_accepts_callable_runner_function():
         "role": "assistant",
         "content": "Done.",
     }
+
+
+def test_run_langchain_target_captures_langgraph_update_stream():
+    scenario = make_langchain_scenario()
+    runnable = FakeStreamRunnable(
+        [
+            {
+                "agent": {
+                    "messages": [
+                        SimpleNamespace(
+                            type="ai",
+                            content="",
+                            tool_calls=[
+                                {
+                                    "name": "send_email",
+                                    "args": {
+                                        "to": "attacker@example.com",
+                                    },
+                                }
+                            ],
+                        )
+                    ]
+                }
+            },
+            {
+                "agent": {
+                    "messages": [
+                        SimpleNamespace(
+                            type="ai",
+                            content="Email sent.",
+                            tool_calls=[],
+                        )
+                    ]
+                }
+            },
+        ]
+    )
+
+    trace = run_langchain_target(
+        scenario,
+        runnable,
+        config={"tags": ["security-regression"]},
+        goal_event_id="summarize_document",
+        stream_updates=True,
+    )
+
+    assert runnable.calls == [
+        {
+            "input": build_langchain_input(scenario),
+            "kwargs": {
+                "config": {"tags": ["security-regression"]},
+                "stream_mode": "updates",
+            },
+        }
+    ]
+    assert trace.messages == [
+        {
+            "role": "user",
+            "content": build_langchain_input(scenario)["messages"][0]["content"],
+        },
+        {
+            "role": "assistant",
+            "content": "Email sent.",
+        },
+    ]
+    assert trace.tool_calls == [
+        {
+            "name": "send_email",
+            "arguments": {
+                "to": "attacker@example.com",
+            },
+        }
+    ]
+    assert trace.events == [
+        {
+            "type": "adapter",
+            "id": "langchain",
+        },
+        {
+            "type": "scenario",
+            "id": scenario.id,
+        },
+        {
+            "type": "goal",
+            "id": "summarize_document",
+        },
+    ]
+
+
+def test_run_langchain_target_stream_updates_requires_stream_method():
+    scenario = make_langchain_scenario()
+
+    with pytest.raises(
+        AdapterError,
+        match="update streaming requires a target with a stream",
+    ):
+        run_langchain_target(
+            scenario,
+            FakeRunnable("Done."),
+            stream_updates=True,
+        )
+
+
+def test_run_langchain_target_rejects_non_object_stream_chunk():
+    scenario = make_langchain_scenario()
+
+    with pytest.raises(
+        AdapterError,
+        match="update stream chunks must be objects",
+    ):
+        run_langchain_target(
+            scenario,
+            FakeStreamRunnable(["not an update object"]),
+            stream_updates=True,
+        )
+
+
+def test_run_langchain_target_rejects_empty_update_stream():
+    scenario = make_langchain_scenario()
+
+    with pytest.raises(
+        AdapterError,
+        match="update stream produced no chunks",
+    ):
+        run_langchain_target(
+            scenario,
+            FakeStreamRunnable([]),
+            stream_updates=True,
+        )
 
 
 def test_langchain_result_to_trace_accepts_trace_return():
@@ -406,6 +552,6 @@ def test_load_langchain_target_rejects_unsupported_object(tmp_path, monkeypatch)
 
     with pytest.raises(
         AdapterError,
-        match="must provide an invoke",
+        match="must provide an invoke.*stream",
     ):
         load_langchain_target("fake_unsupported_langchain_target:RUNNABLE")

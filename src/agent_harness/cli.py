@@ -199,6 +199,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional goal event id recorded in the LangChain/LangGraph trace.",
     )
     run_parser.add_argument(
+        "--langchain-stream-updates",
+        action="store_true",
+        help=(
+            "Run a LangGraph target through synchronous "
+            "stream_mode='updates' instead of invoke()."
+        ),
+    )
+    run_parser.add_argument(
         "--openai-agent-max-turns",
         type=int,
         help="Optional max_turns value passed to the OpenAI Agents SDK runner.",
@@ -300,6 +308,9 @@ def main() -> int:
         if args.langchain_goal_event is not None and args.langchain_target is None:
             parser.error("--langchain-goal-event can only be used with --langchain-target")
 
+        if args.langchain_stream_updates and args.langchain_target is None:
+            parser.error("--langchain-stream-updates can only be used with --langchain-target")
+
         if (
             args.langchain_goal_event is not None
             and not args.langchain_goal_event.strip()
@@ -382,6 +393,7 @@ def main() -> int:
                     scenario,
                     args.langchain_target,
                     goal_event_id=args.langchain_goal_event,
+                    stream_updates=args.langchain_stream_updates,
                 )
             except AdapterError as exc:
                 print(f"adapter error: {exc}", file=sys.stderr)
