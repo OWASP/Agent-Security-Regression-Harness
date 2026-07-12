@@ -110,6 +110,7 @@ def run_scenario_with_openai_agent(
     openai_agent: str,
     *,
     max_turns: int | None = None,
+    goal_event_id: str | None = None,
 ) -> HarnessResult:
     """Run a scenario against an OpenAI Agents SDK Agent target."""
     agent = load_python_object(openai_agent, "OpenAI Agents SDK target")
@@ -117,6 +118,7 @@ def run_scenario_with_openai_agent(
         scenario,
         agent,
         max_turns=max_turns,
+        goal_event_id=goal_event_id,
     )
     assertion_results = evaluate_assertions(scenario, trace)
     top_level_result = aggregate_assertion_results(assertion_results)

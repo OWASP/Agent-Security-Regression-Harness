@@ -341,6 +341,19 @@ will not pass for an expected goal of `summarize_document`. A trace
 with no goal events at all fails the assertion: the agent did not
 demonstrate that it committed to the user's stated goal.
 
+For OpenAI Agents SDK targets, record the expected goal explicitly through the
+CLI:
+
+```bash
+agent-harness run scenarios/goal_hijack/basic.yaml \
+  --openai-agent my_agent_module:agent \
+  --openai-agent-goal-event summarize_document
+```
+
+The equivalent Python API is
+`run_openai_agents_target(scenario, agent, goal_event_id="summarize_document")`.
+The adapter never infers this value from model output.
+
 ## Scenario model
 
 A scenario defines the security policy and expected behavior.

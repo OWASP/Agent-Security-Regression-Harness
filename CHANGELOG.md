@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`--openai-agent-goal-event` flag** — record an explicit `goal` event for
+  OpenAI Agents SDK runs so `goal_integrity` assertions can be evaluated
+  without inferring intent from model output.
 - **`--junit-out` flag** — write assertion results as JUnit XML for CI
   systems while preserving the existing result JSON output.
 - **MCP host CLI wiring** — add `agent-harness run --mcp-host-target ...`

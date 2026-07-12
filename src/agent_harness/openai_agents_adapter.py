@@ -15,6 +15,7 @@ OPENAI_AGENTS_INSTALL_MESSAGE = (
     'Install them with: python -m pip install "'
     'owasp-agent-security-regression-harness[openai-agents]"'
 )
+OPENAI_AGENTS_ADAPTER_ID = "openai_agents"
 
 
 def build_openai_agents_input(scenario: Scenario) -> str:
@@ -105,6 +106,8 @@ def _trace_from_openai_agents_result(
     scenario: Scenario,
     runner_input: str,
     result: Any,
+    *,
+    goal_event_id: str | None = None,
 ) -> Trace:
     """Convert an OpenAI Agents SDK run result into a harness Trace."""
     final_output = _field(result, "final_output", "")
@@ -123,6 +126,25 @@ def _trace_from_openai_agents_result(
         if tool_call is not None:
             tool_calls.append(tool_call)
 
+    events = [
+        {
+            "type": "adapter",
+            "id": OPENAI_AGENTS_ADAPTER_ID,
+        },
+        {
+            "type": "scenario",
+            "id": scenario.id,
+        },
+    ]
+
+    if goal_event_id is not None:
+        events.append(
+            {
+                "type": "goal",
+                "id": goal_event_id,
+            }
+        )
+
     trace_data = {
         "messages": [
             {
@@ -135,16 +157,7 @@ def _trace_from_openai_agents_result(
             },
         ],
         "tool_calls": tool_calls,
-        "events": [
-            {
-                "type": "adapter",
-                "id": "openai_agents",
-            },
-            {
-                "type": "scenario",
-                "id": scenario.id,
-            },
-        ],
+        "events": events,
     }
 
     try:
@@ -159,8 +172,10 @@ def run_openai_agents_target(
     *,
     runner: Any | None = None,
     max_turns: int | None = None,
+    goal_event_id: str | None = None,
 ) -> Trace:
     """Run a scenario against an OpenAI Agents SDK Agent and return its trace."""
+    _validate_goal_event_id(goal_event_id)
     selected_runner = runner if runner is not None else _load_default_runner()
     run_sync = getattr(selected_runner, "run_sync", None)
 
@@ -178,4 +193,18 @@ def run_openai_agents_target(
     except Exception as exc:
         raise AdapterError(f"OpenAI Agents SDK runner failed: {exc}") from exc
 
-    return _trace_from_openai_agents_result(scenario, runner_input, result)
+    return _trace_from_openai_agents_result(
+        scenario,
+        runner_input,
+        result,
+        goal_event_id=goal_event_id,
+    )
+
+
+def _validate_goal_event_id(goal_event_id: str | None) -> None:
+    """Reject goal event identifiers that cannot form a valid trace event."""
+    if goal_event_id is None:
+        return
+
+    if not isinstance(goal_event_id, str) or not goal_event_id.strip():
+        raise AdapterError("OpenAI Agents SDK goal event id must be non-empty")
