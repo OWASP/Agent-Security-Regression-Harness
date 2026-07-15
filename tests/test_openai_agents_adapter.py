@@ -162,6 +162,43 @@ def test_run_openai_agents_target_extracts_tool_calls_from_new_items():
     ]
 
 
+def test_run_openai_agents_target_records_explicit_goal_event():
+    scenario = make_scenario()
+
+    class FakeRunner:
+        @staticmethod
+        def run_sync(agent, runner_input, **kwargs):
+            return SimpleNamespace(final_output="Done.", new_items=[])
+
+    trace = run_openai_agents_target(
+        scenario,
+        object(),
+        runner=FakeRunner,
+        goal_event_id="summarize_document",
+    )
+
+    assert trace.events[-1] == {
+        "type": "goal",
+        "id": "summarize_document",
+    }
+
+
+@pytest.mark.parametrize("goal_event_id", ["", "   ", 123])
+def test_run_openai_agents_target_rejects_invalid_goal_event_id(goal_event_id):
+    scenario = make_scenario()
+
+    with pytest.raises(
+        AdapterError,
+        match="OpenAI Agents SDK goal event id must be non-empty",
+    ):
+        run_openai_agents_target(
+            scenario,
+            object(),
+            runner=object(),
+            goal_event_id=goal_event_id,
+        )
+
+
 def test_run_openai_agents_target_preserves_raw_non_json_tool_arguments():
     scenario = make_scenario()
 

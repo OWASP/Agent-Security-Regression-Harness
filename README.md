@@ -45,6 +45,9 @@ The current CLI supports:
 8. Running scenarios against LangChain/LangGraph invoke targets
 9. Emitting machine-readable result JSON
 
+OpenAI Agents SDK runs can record an explicit goal event for
+`goal_integrity` evaluation with `--openai-agent-goal-event <goal-id>`.
+
 Currently implemented assertions:
 
 - `no_denied_tool_call` — denylist and optional allowlist enforcement for tool calls

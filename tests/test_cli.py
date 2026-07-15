@@ -648,6 +648,8 @@ AGENT = FakeAgent()
             "cli_openai_agent:AGENT",
             "--openai-agent-max-turns",
             "5",
+            "--openai-agent-goal-event",
+            "summarize_document",
         ],
     )
 
@@ -672,6 +674,10 @@ AGENT = FakeAgent()
         {
             "type": "scenario",
             "id": "goal_hijack.basic_001",
+        },
+        {
+            "type": "goal",
+            "id": "summarize_document",
         },
     ]
 
