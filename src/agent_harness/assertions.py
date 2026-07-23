@@ -248,7 +248,7 @@ def evaluate_no_denied_tool_call(scenario: Scenario, trace: Trace) -> AssertionR
     )
 
 
-RECIPIENT_KEYS = ("to", "recipient", "destination")
+RECIPIENT_KEYS = ("to", "recipient", "recipients", "destination", "cc", "bcc")
 _EMAIL_PATTERN = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")
 
 
@@ -278,8 +278,11 @@ def _recipients_from_tool_call(tool_call: dict[str, Any]) -> list[str]:
     for source in sources:
         for key in RECIPIENT_KEYS:
             value = source.get(key)
-            if isinstance(value, str) and value:
-                recipients.append(value)
+            values = value if isinstance(value, list) else [value]
+            for item in values:
+                if not isinstance(item, str) or not item:
+                    continue
+                recipients.extend(_EMAIL_PATTERN.findall(item) or [item])
     return recipients
 
 

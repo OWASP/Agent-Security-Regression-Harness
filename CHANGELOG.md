@@ -7,14 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`no_external_recipient` collection handling** — inspect recipient lists,
+  multi-address strings, and common `recipients`, `cc`, and `bcc` fields so
+  external addresses cannot bypass outbound allowlist enforcement.
+
 ## [0.2.0] — 2026-07-27
 
+### Added
 Hardening and CI ergonomics. This release makes the harness comfortable to run
 in real CI pipelines: machine-readable report formats (JUnit XML, SARIF),
 directory/suite execution, configurable live-HTTP behavior, adapter parity for
 goal events and LangGraph streaming, and a written schema-versioning policy.
-
-### Added
 
 - **`suite` subcommand** — `agent-harness suite <paths...> --trace-dir <dir>`
   runs a directory of scenarios against trace files (mapped by scenario id to
