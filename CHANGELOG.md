@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`no_external_recipient` collection handling** — inspect recipient lists,
+  multi-address strings, and common `recipients`, `cc`, and `bcc` fields so
+  external addresses cannot bypass outbound allowlist enforcement.
+
 ### Added
 
 - **`--junit-out` flag** — write assertion results as JUnit XML for CI
