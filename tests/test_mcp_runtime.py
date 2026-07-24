@@ -39,8 +39,34 @@ servers:
     assert server.id == "filesystem_fixture"
     assert server.transport == "stdio"
     assert server.command == "python"
+    assert server.url == ""
     assert server.args == ("tests/fixtures/mcp_servers/filesystem_server.py",)
     assert server.timeout_seconds == 5.0
+
+
+def test_load_mcp_runtime_config_accepts_streamable_http_server_shape(tmp_path):
+    config_path = tmp_path / "mcp-runtime.yaml"
+    config_path.write_text(
+        """
+servers:
+  - id: remote_agent
+    transport: streamable_http
+    url: https://mcp.example.com/mcp
+    headers:
+      Authorization: Bearer token
+""",
+        encoding="utf-8",
+    )
+
+    config = load_mcp_runtime_config(config_path)
+
+    assert config.server_ids == ("remote_agent",)
+    server = config.get_server("remote_agent")
+    assert server.transport == "streamable_http"
+    assert server.url == "https://mcp.example.com/mcp"
+    assert server.command == ""
+    assert server.args == ()
+    assert server.headers == (("Authorization", "Bearer token"),)
 
 
 def test_parse_mcp_runtime_config_rejects_servers_mapping_shape():
@@ -159,13 +185,13 @@ def test_parse_mcp_runtime_config_rejects_duplicate_server_ids():
 
 
 def test_parse_mcp_runtime_config_rejects_unknown_transport():
-    with pytest.raises(AdapterError, match="transport 'streamable_http' is not supported"):
+    with pytest.raises(AdapterError, match="transport 'ftp' is not supported"):
         parse_mcp_runtime_config(
             {
                 "servers": [
                     {
                         "id": "filesystem_fixture",
-                        "transport": "streamable_http",
+                        "transport": "ftp",
                         "command": "python",
                     }
                 ]
@@ -173,7 +199,7 @@ def test_parse_mcp_runtime_config_rejects_unknown_transport():
         )
 
 
-def test_parse_mcp_runtime_config_rejects_missing_command():
+def test_parse_mcp_runtime_config_rejects_missing_command_for_stdio():
     with pytest.raises(AdapterError, match="command must be a non-empty string"):
         parse_mcp_runtime_config(
             {
@@ -181,6 +207,39 @@ def test_parse_mcp_runtime_config_rejects_missing_command():
                     {
                         "id": "filesystem_fixture",
                         "transport": "stdio",
+                    }
+                ]
+            }
+        )
+
+
+def test_parse_mcp_runtime_config_rejects_stdio_command_for_http_transport():
+    with pytest.raises(
+        AdapterError,
+        match="command is only supported with the stdio transport",
+    ):
+        parse_mcp_runtime_config(
+            {
+                "servers": [
+                    {
+                        "id": "remote_agent",
+                        "transport": "sse",
+                        "command": "python",
+                        "url": "https://mcp.example.com/mcp",
+                    }
+                ]
+            }
+        )
+
+
+def test_parse_mcp_runtime_config_rejects_missing_url_for_http_transports():
+    with pytest.raises(AdapterError, match="url must be a non-empty string"):
+        parse_mcp_runtime_config(
+            {
+                "servers": [
+                    {
+                        "id": "remote_agent",
+                        "transport": "sse",
                     }
                 ]
             }

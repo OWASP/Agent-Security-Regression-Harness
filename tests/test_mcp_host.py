@@ -37,7 +37,7 @@ FIXTURE_SERVER_PATH = (
 )
 
 
-def make_mcp_scenario():
+def make_mcp_scenario(server_id="filesystem_fixture"):
     return validate_scenario_data(
         {
             "id": "mcp_trust_boundary.delete_file_001",
@@ -46,7 +46,7 @@ def make_mcp_scenario():
             "severity": "high",
             "target": {
                 "adapter": "mcp",
-                "required_servers": ["filesystem_fixture"],
+                "required_servers": [server_id],
             },
             "input": {
                 "user_message": "Summarize the document.",
@@ -118,9 +118,11 @@ class FakeBehavior:
     content_text = None
 
 
-FAKE_SERVER_PARAMS = []
-FAKE_STDIO_CONTEXTS = []
-FAKE_CLIENT_SESSIONS = []
+FAKE_SERVER_PARAMS: list[object] = []
+FAKE_STDIO_CONTEXTS: list[object] = []
+FAKE_CLIENT_SESSIONS: list[object] = []
+FAKE_STREAMABLE_HTTP_CONTEXTS: list[object] = []
+FAKE_SSE_CONTEXTS: list[object] = []
 
 
 @pytest.fixture(autouse=True)
@@ -145,6 +147,8 @@ def reset_fake_mcp_behavior():
     FAKE_SERVER_PARAMS.clear()
     FAKE_STDIO_CONTEXTS.clear()
     FAKE_CLIENT_SESSIONS.clear()
+    FAKE_STREAMABLE_HTTP_CONTEXTS.clear()
+    FAKE_SSE_CONTEXTS.clear()
 
 
 class FakeStdioContext:
@@ -222,6 +226,40 @@ class FakeClientSession:
         )
 
 
+class FakeStreamableHttpContext:
+    def __init__(self, url, headers, timeout):
+        self.url = url
+        self.headers = headers
+        self.timeout = timeout
+        self.exited = False
+
+    async def __aenter__(self):
+        if FakeBehavior.stdio_enter_delay:
+            await asyncio.sleep(FakeBehavior.stdio_enter_delay)
+        return "streamable-http-read-stream", "streamable-http-write-stream", lambda: None
+
+    async def __aexit__(self, exc_type, exc, traceback):
+        self.exited = True
+        return False
+
+
+class FakeSseContext:
+    def __init__(self, url, headers, timeout):
+        self.url = url
+        self.headers = headers
+        self.timeout = timeout
+        self.exited = False
+
+    async def __aenter__(self):
+        if FakeBehavior.stdio_enter_delay:
+            await asyncio.sleep(FakeBehavior.stdio_enter_delay)
+        return "sse-read-stream", "sse-write-stream"
+
+    async def __aexit__(self, exc_type, exc, traceback):
+        self.exited = True
+        return False
+
+
 class FakeStdioServerParameters:
     def __init__(self, command, args, env=None, cwd=None):
         self.command = command
@@ -237,11 +275,35 @@ def fake_stdio_client(server_params):
     return context
 
 
+def fake_streamable_http_client(url, headers=None, timeout=None):
+    context = FakeStreamableHttpContext(url, headers, timeout)
+    FAKE_STREAMABLE_HTTP_CONTEXTS.append(context)
+    return context
+
+
+def fake_sse_client(url, headers=None, timeout=None):
+    context = FakeSseContext(url, headers, timeout)
+    FAKE_SSE_CONTEXTS.append(context)
+    return context
+
+
 def fake_sdk():
     return mcp_host._MCPSDK(
         ClientSession=FakeClientSession,
         StdioServerParameters=FakeStdioServerParameters,
         stdio_client=fake_stdio_client,
+        streamable_http_client=None,
+        sse_client=None,
+    )
+
+
+def fake_sdk_with_http_clients():
+    return mcp_host._MCPSDK(
+        ClientSession=FakeClientSession,
+        StdioServerParameters=FakeStdioServerParameters,
+        stdio_client=fake_stdio_client,
+        streamable_http_client=fake_streamable_http_client,
+        sse_client=fake_sse_client,
     )
 
 
@@ -491,6 +553,140 @@ def test_run_mcp_host_target_with_local_stdio_fixture_server(tmp_path):
         "delete_file",
     }
     assert execution.trace.events[-1]["server_id"] == "filesystem_fixture"
+
+
+def test_run_mcp_host_target_with_streamable_http_transport():
+    scenario = make_mcp_scenario("remote_agent")
+    config = parse_mcp_runtime_config(
+        {
+            "servers": [
+                {
+                    "id": "remote_agent",
+                    "transport": "streamable_http",
+                    "url": "https://mcp.example.com/mcp",
+                    "headers": {
+                        "Authorization": "Bearer token",
+                    },
+                    "timeout_seconds": 1,
+                }
+            ]
+        }
+    )
+
+    def target(payload, host):
+        host.call_tool(
+            "remote_agent",
+            "delete_file",
+            {
+                "path": "notes.txt",
+            },
+        )
+        return {
+            "final_output": "Done.",
+        }
+
+    execution = run_mcp_host_target(
+        scenario,
+        target,
+        config,
+        sdk_loader=fake_sdk_with_http_clients,
+    )
+
+    assert FAKE_STREAMABLE_HTTP_CONTEXTS, "streamable_http_client was not invoked"
+    assert FAKE_STREAMABLE_HTTP_CONTEXTS[0].url == "https://mcp.example.com/mcp"
+    assert FAKE_STREAMABLE_HTTP_CONTEXTS[0].headers == {"Authorization": "Bearer token"}
+    assert FAKE_STREAMABLE_HTTP_CONTEXTS[0].timeout == 1
+    assert FAKE_STREAMABLE_HTTP_CONTEXTS[0].exited is True
+    assert execution.mcp_servers == (
+        {
+            "id": "remote_agent",
+            "transport": "streamable_http",
+            "url": "https://mcp.example.com/mcp",
+            "protocol_version": "2025-11-25",
+            "server_name": "fixture-filesystem",
+            "server_version": "0.1.0",
+            "capabilities": {
+                "tools": {},
+            },
+        },
+    )
+    assert execution.mcp_tool_calls == (
+        {
+            "name": canonical_mcp_tool_name("remote_agent", "delete_file"),
+            "server_id": "remote_agent",
+            "tool_name": "delete_file",
+            "arguments": {
+                "path": "notes.txt",
+            },
+        },
+    )
+    initialized_event = execution.trace.events[2]
+    assert initialized_event["type"] == "mcp_connection_initialized"
+    assert initialized_event["transport"] == "streamable_http"
+    assert initialized_event["url"] == "https://mcp.example.com/mcp"
+    assert "command" not in initialized_event
+
+
+def test_run_mcp_host_target_with_sse_transport():
+    scenario = make_mcp_scenario("remote_agent")
+    config = parse_mcp_runtime_config(
+        {
+            "servers": [
+                {
+                    "id": "remote_agent",
+                    "transport": "sse",
+                    "url": "https://mcp.example.com/sse",
+                    "headers": {
+                        "Authorization": "Bearer token",
+                    },
+                    "timeout_seconds": 2,
+                }
+            ]
+        }
+    )
+
+    def target(payload, host):
+        host.call_tool(
+            "remote_agent",
+            "delete_file",
+            {
+                "path": "notes.txt",
+            },
+        )
+        return {
+            "final_output": "Done.",
+        }
+
+    execution = run_mcp_host_target(
+        scenario,
+        target,
+        config,
+        sdk_loader=fake_sdk_with_http_clients,
+    )
+
+    assert FAKE_SSE_CONTEXTS, "sse_client was not invoked"
+    assert FAKE_SSE_CONTEXTS[0].url == "https://mcp.example.com/sse"
+    assert FAKE_SSE_CONTEXTS[0].headers == {"Authorization": "Bearer token"}
+    assert FAKE_SSE_CONTEXTS[0].timeout == 2
+    assert FAKE_SSE_CONTEXTS[0].exited is True
+    assert execution.mcp_servers == (
+        {
+            "id": "remote_agent",
+            "transport": "sse",
+            "url": "https://mcp.example.com/sse",
+            "protocol_version": "2025-11-25",
+            "server_name": "fixture-filesystem",
+            "server_version": "0.1.0",
+            "capabilities": {
+                "tools": {},
+            },
+        },
+    )
+    initialized_event = execution.trace.events[2]
+    assert initialized_event["type"] == "mcp_connection_initialized"
+    assert initialized_event["transport"] == "sse"
+    assert initialized_event["url"] == "https://mcp.example.com/sse"
+    assert "command" not in initialized_event
 
 
 def test_run_mcp_host_target_passes_host_context_and_records_real_tool_call():

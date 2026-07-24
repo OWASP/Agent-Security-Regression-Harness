@@ -70,6 +70,8 @@ class _MCPSDK:
     ClientSession: Any
     StdioServerParameters: Any
     stdio_client: Any
+    streamable_http_client: Any
+    sse_client: Any
 
 
 @dataclass
@@ -278,7 +280,7 @@ async def async_run_mcp_host_target(
         initial_events: list[dict[str, Any]] = []
 
         for server_config in runtime_config.servers:
-            connection, events = await _connect_stdio_server(
+            connection, events = await _connect_mcp_server(
                 server_config,
                 sdk,
                 stack,
@@ -361,6 +363,131 @@ async def _connect_stdio_server(
             sdk,
             stack,
             server_params,
+        )
+        session = await _open_client_session(
+            server_config,
+            sdk,
+            stack,
+            read_stream,
+            write_stream,
+        )
+        initialize_result, tools_result = await _initialize_session(
+            server_config,
+            session,
+        )
+    except AdapterError:
+        raise
+    except Exception as exc:
+        raise AdapterError(
+            "Could not initialize MCP server "
+            f"{server_config.id}: {_safe_error_message(exc)}"
+        ) from exc
+
+    metadata = _server_metadata(server_config, initialize_result)
+    tool_names = _tool_names_from_list_tools_result(tools_result)
+    events = [
+        _connection_initialized_event(server_config, initialize_result),
+        _tools_discovered_event(server_config, tools_result),
+    ]
+
+    return _MCPConnection(server_config, session, metadata, tool_names), events
+
+
+async def _connect_mcp_server(
+    server_config: MCPServerConfig,
+    sdk: _MCPSDK,
+    stack: AsyncExitStack,
+) -> tuple[_MCPConnection, list[dict[str, Any]]]:
+    if server_config.transport == "stdio":
+        return await _connect_stdio_server(server_config, sdk, stack)
+
+    if server_config.transport == "streamable_http":
+        return await _connect_streamable_http_server(server_config, sdk, stack)
+
+    if server_config.transport == "sse":
+        return await _connect_sse_server(server_config, sdk, stack)
+
+    raise AdapterError(
+        f"MCP server {server_config.id} uses unsupported transport: "
+        f"{server_config.transport}"
+    )
+
+
+async def _connect_streamable_http_server(
+    server_config: MCPServerConfig,
+    sdk: _MCPSDK,
+    stack: AsyncExitStack,
+) -> tuple[_MCPConnection, list[dict[str, Any]]]:
+    if sdk.streamable_http_client is None:
+        raise AdapterError(
+            f"MCP SDK does not expose streamable HTTP client for server "
+            f"{server_config.id}"
+        )
+
+    try:
+        read_stream, write_stream, _ = await _wait_for_mcp_startup_step(
+            stack.enter_async_context(
+                sdk.streamable_http_client(
+                    server_config.url,
+                    headers=dict(server_config.headers),
+                    timeout=server_config.timeout_seconds,
+                )
+            ),
+            timeout_seconds=server_config.timeout_seconds,
+            server_id=server_config.id,
+            operation="open streamable_http transport",
+        )
+        session = await _open_client_session(
+            server_config,
+            sdk,
+            stack,
+            read_stream,
+            write_stream,
+        )
+        initialize_result, tools_result = await _initialize_session(
+            server_config,
+            session,
+        )
+    except AdapterError:
+        raise
+    except Exception as exc:
+        raise AdapterError(
+            "Could not initialize MCP server "
+            f"{server_config.id}: {_safe_error_message(exc)}"
+        ) from exc
+
+    metadata = _server_metadata(server_config, initialize_result)
+    tool_names = _tool_names_from_list_tools_result(tools_result)
+    events = [
+        _connection_initialized_event(server_config, initialize_result),
+        _tools_discovered_event(server_config, tools_result),
+    ]
+
+    return _MCPConnection(server_config, session, metadata, tool_names), events
+
+
+async def _connect_sse_server(
+    server_config: MCPServerConfig,
+    sdk: _MCPSDK,
+    stack: AsyncExitStack,
+) -> tuple[_MCPConnection, list[dict[str, Any]]]:
+    if sdk.sse_client is None:
+        raise AdapterError(
+            f"MCP SDK does not expose SSE client for server {server_config.id}"
+        )
+
+    try:
+        read_stream, write_stream = await _wait_for_mcp_startup_step(
+            stack.enter_async_context(
+                sdk.sse_client(
+                    server_config.url,
+                    headers=dict(server_config.headers),
+                    timeout=server_config.timeout_seconds,
+                )
+            ),
+            timeout_seconds=server_config.timeout_seconds,
+            server_id=server_config.id,
+            operation="open sse transport",
         )
         session = await _open_client_session(
             server_config,
@@ -522,6 +649,8 @@ def _load_mcp_sdk(
 
     mcp_module = import_module("mcp")
     stdio_module = import_module("mcp.client.stdio")
+    streamable_http_module = import_module("mcp.client.streamable_http")
+    sse_module = import_module("mcp.client.sse")
 
     client_session = getattr(mcp_module, "ClientSession", None)
     if client_session is None:
@@ -531,10 +660,25 @@ def _load_mcp_sdk(
     if stdio_server_parameters is None:
         stdio_server_parameters = stdio_module.StdioServerParameters
 
+    streamable_http_client = getattr(
+        streamable_http_module,
+        "streamablehttp_client",
+        None,
+    )
+    if streamable_http_client is None:
+        streamable_http_client = getattr(
+            streamable_http_module,
+            "streamable_http_client",
+            None,
+        )
+    sse_client = getattr(sse_module, "sse_client", None)
+
     return _MCPSDK(
         ClientSession=client_session,
         StdioServerParameters=stdio_server_parameters,
         stdio_client=stdio_module.stdio_client,
+        streamable_http_client=streamable_http_client,
+        sse_client=sse_client,
     )
 
 
@@ -603,10 +747,20 @@ def _server_metadata(
     metadata = {
         "id": server_config.id,
         "transport": server_config.transport,
-        "command": _command_basename(server_config.command),
     }
+    metadata.update(_server_identity_fields(server_config))
     metadata.update(_initialize_result_metadata(initialize_result))
     return metadata
+
+
+def _server_identity_fields(server_config: MCPServerConfig) -> dict[str, Any]:
+    if server_config.transport == "stdio":
+        return {"command": _command_basename(server_config.command)}
+
+    if server_config.url:
+        return {"url": server_config.url}
+
+    return {}
 
 
 def _connection_initialized_event(
@@ -618,8 +772,8 @@ def _connection_initialized_event(
         "id": server_config.id,
         "server_id": server_config.id,
         "transport": server_config.transport,
-        "command": _command_basename(server_config.command),
     }
+    event.update(_server_identity_fields(server_config))
     event.update(_initialize_result_metadata(initialize_result))
     return event
 
@@ -630,11 +784,14 @@ def _connection_closed_event(connection: _MCPConnection) -> dict[str, Any]:
         "id": connection.config.id,
         "server_id": connection.config.id,
         "transport": connection.config.transport,
-        "command": _command_basename(connection.config.command),
+        **_server_identity_fields(connection.config),
     }
 
 
-def _command_basename(command: str) -> str:
+def _command_basename(command: str | None) -> str:
+    if command is None:
+        return ""
+
     normalized = command.strip().rstrip("\\/")
     if not normalized:
         return command

@@ -18,7 +18,7 @@ import yaml
 from agent_harness.adapters import AdapterError
 
 DEFAULT_MCP_TIMEOUT_SECONDS = 5.0
-SUPPORTED_MCP_TRANSPORTS = frozenset({"stdio"})
+SUPPORTED_MCP_TRANSPORTS = frozenset({"stdio", "streamable_http", "sse"})
 MCP_INSTALL_HINT = (
     "MCP adapter dependencies are not installed. "
     'Install them with: python -m pip install '
@@ -32,8 +32,10 @@ class MCPServerConfig:
 
     id: str
     transport: str
-    command: str
+    command: str | None = None
+    url: str | None = None
     args: tuple[str, ...] = ()
+    headers: tuple[tuple[str, str], ...] = ()
     env: tuple[tuple[str, str], ...] = ()
     cwd: Path | None = None
     timeout_seconds: float = DEFAULT_MCP_TIMEOUT_SECONDS
@@ -162,6 +164,8 @@ def _parse_server_config(
     server_id = _server_id_from_entry(index, entry)
     transport = _parse_transport(label, entry)
     command = _parse_stdio_command(label, entry, transport)
+    url = _parse_http_url(label, entry, transport)
+    headers = _parse_headers(label, entry, transport)
     args = _parse_args(label, entry)
     env = _parse_env(label, entry)
     cwd = _parse_cwd(label, entry)
@@ -171,7 +175,9 @@ def _parse_server_config(
         id=server_id,
         transport=transport,
         command=command,
+        url=url,
         args=args,
+        headers=headers,
         env=env,
         cwd=cwd,
         timeout_seconds=timeout_seconds,
@@ -224,13 +230,65 @@ def _parse_stdio_command(
     transport: str,
 ) -> str:
     if transport != "stdio":
-        raise AdapterError(f"{label} transport is not implemented: {transport}")
+        if "command" in entry:
+            raise AdapterError(
+                f"{label} command is only supported with the stdio transport"
+            )
+        return ""
 
     command = entry.get("command")
     if not isinstance(command, str) or not command.strip():
         raise AdapterError(f"{label} command must be a non-empty string")
 
     return command.strip()
+
+
+def _parse_http_url(
+    label: str,
+    entry: dict[str, Any],
+    transport: str,
+) -> str:
+    if transport == "stdio":
+        return ""
+
+    url = entry.get("url")
+    if not isinstance(url, str) or not url.strip():
+        raise AdapterError(f"{label} url must be a non-empty string")
+
+    return url.strip()
+
+
+def _parse_headers(
+    label: str,
+    entry: dict[str, Any],
+    transport: str,
+) -> tuple[tuple[str, str], ...]:
+    raw_headers = entry.get("headers", {})
+
+    if transport == "stdio":
+        return () if raw_headers is None else _coerce_headers(label, raw_headers)
+
+    if raw_headers is None:
+        return ()
+
+    return _coerce_headers(label, raw_headers)
+
+
+def _coerce_headers(label: str, raw_headers: Any) -> tuple[tuple[str, str], ...]:
+    if not isinstance(raw_headers, dict):
+        raise AdapterError(f"{label} headers must be an object")
+
+    normalized_headers = []
+    for key, value in raw_headers.items():
+        if not isinstance(key, str) or not key.strip():
+            raise AdapterError(f"{label} header names must be non-empty strings")
+        if not isinstance(value, str):
+            raise AdapterError(
+                f"{label} header {key!r} value must be a string"
+            )
+        normalized_headers.append((key.strip(), value))
+
+    return tuple(normalized_headers)
 
 
 def _parse_args(label: str, entry: dict[str, Any]) -> tuple[str, ...]:
