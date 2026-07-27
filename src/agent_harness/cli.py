@@ -26,7 +26,7 @@ from agent_harness.sarif import result_to_sarif
 from agent_harness.scenario import ScenarioValidationError, load_scenario
 from agent_harness.trace import TraceValidationError, load_trace
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 HEADER_NAME_RE = re.compile(r"^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")
 
 

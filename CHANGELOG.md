@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-07-27
+
+Hardening and CI ergonomics. This release makes the harness comfortable to run
+in real CI pipelines: machine-readable report formats (JUnit XML, SARIF),
+directory/suite execution, configurable live-HTTP behavior, adapter parity for
+goal events and LangGraph streaming, and a written schema-versioning policy.
+
 ### Added
 
 - **`suite` subcommand** — `agent-harness suite <paths...> --trace-dir <dir>`
@@ -153,5 +160,6 @@ a usable OWASP Incubator baseline.
   Windows junctions and reparse points, marker-file access, directory
   deletions, oversized reads, and non-UTF-8 reads.
 
-[Unreleased]: https://github.com/OWASP/Agent-Security-Regression-Harness/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/OWASP/Agent-Security-Regression-Harness/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/OWASP/Agent-Security-Regression-Harness/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/OWASP/Agent-Security-Regression-Harness/releases/tag/v0.1.0

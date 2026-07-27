@@ -73,7 +73,7 @@ agent-harness version
 Expected output:
 
 ```text
-agent-harness 0.1.0
+agent-harness 0.2.0
 ```
 
 For authoring guidance, see [Scenario Specification](docs/scenario-spec.md).
