@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`--sarif-out` flag** — write assertion results as SARIF 2.1.0 for GitHub
+  Code Scanning and other SARIF-aware dashboards. Only `fail` and `error`
+  assertions are emitted as results, since SARIF results represent findings.
 - **LangGraph update-stream traces** — add opt-in
   `--langchain-stream-updates` execution for synchronous
   `stream_mode="updates"` targets while preserving the existing `invoke()` path.
