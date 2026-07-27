@@ -12,6 +12,7 @@ from agent_harness.adapters import DEFAULT_HTTP_TIMEOUT_SECONDS, AdapterError
 from agent_harness.junit import result_to_junit_xml
 from agent_harness.runner import (
     dry_run_scenario,
+    resolve_within,
     run_scenario_live,
     run_scenario_with_langchain_target,
     run_scenario_with_mcp_host_target,
@@ -21,6 +22,7 @@ from agent_harness.runner import (
     run_scenario_with_trace,
     run_suite,
 )
+from agent_harness.sarif import result_to_sarif
 from agent_harness.scenario import ScenarioValidationError, load_scenario
 from agent_harness.trace import TraceValidationError, load_trace
 
@@ -234,9 +236,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional goal event id recorded in the LangChain/LangGraph trace.",
     )
     run_parser.add_argument(
+        "--langchain-stream-updates",
+        action="store_true",
+        help=(
+            "Run a LangGraph target through synchronous "
+            "stream_mode='updates' instead of invoke()."
+        ),
+    )
+    run_parser.add_argument(
         "--openai-agent-max-turns",
         type=int,
         help="Optional max_turns value passed to the OpenAI Agents SDK runner.",
+    )
+    run_parser.add_argument(
+        "--openai-agent-goal-event",
+        help="Optional goal event id recorded in the OpenAI Agents SDK trace.",
+    )
+    run_parser.add_argument(
+        "--sarif-out",
+        help="Optional path to write assertion results as SARIF 2.1.0.",
     )
     run_parser.add_argument(
         "--exit-on-fail",
@@ -305,7 +323,7 @@ def main() -> int:
             for entry in suite_result.entries:
                 if entry.scenario_id is None or entry.detail is None:
                     continue
-                result_path = out_dir / f"{entry.scenario_id}.json"
+                result_path = resolve_within(out_dir, f"{entry.scenario_id}.json")
                 result_path.write_text(
                     entry.detail.to_json() + "\n", encoding="utf-8"
                 )
@@ -379,8 +397,20 @@ def main() -> int:
         if args.openai_agent_max_turns is not None and args.openai_agent is None:
             parser.error("--openai-agent-max-turns can only be used with --openai-agent")
 
+        if args.openai_agent_goal_event is not None and args.openai_agent is None:
+            parser.error("--openai-agent-goal-event can only be used with --openai-agent")
+
+        if (
+            args.openai_agent_goal_event is not None
+            and not args.openai_agent_goal_event.strip()
+        ):
+            parser.error("--openai-agent-goal-event must be a non-empty string")
+
         if args.langchain_goal_event is not None and args.langchain_target is None:
             parser.error("--langchain-goal-event can only be used with --langchain-target")
+
+        if args.langchain_stream_updates and args.langchain_target is None:
+            parser.error("--langchain-stream-updates can only be used with --langchain-target")
 
         if (
             args.langchain_goal_event is not None
@@ -434,6 +464,7 @@ def main() -> int:
                     scenario,
                     args.openai_agent,
                     max_turns=args.openai_agent_max_turns,
+                    goal_event_id=args.openai_agent_goal_event,
                 )
             except AdapterError as exc:
                 print(f"adapter error: {exc}", file=sys.stderr)
@@ -464,6 +495,7 @@ def main() -> int:
                     scenario,
                     args.langchain_target,
                     goal_event_id=args.langchain_goal_event,
+                    stream_updates=args.langchain_stream_updates,
                 )
             except AdapterError as exc:
                 print(f"adapter error: {exc}", file=sys.stderr)
@@ -485,6 +517,9 @@ def main() -> int:
 
         if args.junit_out:
             Path(args.junit_out).write_text(result_to_junit_xml(result), encoding="utf-8")
+
+        if args.sarif_out:
+            Path(args.sarif_out).write_text(result_to_sarif(result), encoding="utf-8")
 
         if args.exit_on_fail and result.result in {"fail", "error"}:
             return 1

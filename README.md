@@ -341,6 +341,19 @@ will not pass for an expected goal of `summarize_document`. A trace
 with no goal events at all fails the assertion: the agent did not
 demonstrate that it committed to the user's stated goal.
 
+For OpenAI Agents SDK targets, record the expected goal explicitly through the
+CLI:
+
+```bash
+agent-harness run scenarios/goal_hijack/basic.yaml \
+  --openai-agent my_agent_module:agent \
+  --openai-agent-goal-event summarize_document
+```
+
+The equivalent Python API is
+`run_openai_agents_target(scenario, agent, goal_event_id="summarize_document")`.
+The adapter never infers this value from model output.
+
 ## Scenario model
 
 A scenario defines the security policy and expected behavior.
@@ -451,7 +464,7 @@ Currently supported:
 - Python callable target execution
 - OpenAI Agents SDK target execution
 - MVP MCP workflow target execution
-- MVP LangChain/LangGraph invoke target execution
+- LangChain/LangGraph invoke execution and opt-in synchronous update streams
 - JSON result output
 - `no_denied_tool_call` assertion
 - `goal_integrity` assertion
@@ -459,7 +472,7 @@ Currently supported:
 Not implemented yet:
 
 - Full MCP host/runtime adapter support
-- Broad LangChain/LangGraph adapter coverage beyond the synchronous invoke MVP
+- Broader LangChain/LangGraph callback, async-stream, and token-stream coverage
 - Full assertion library
 - Secret disclosure detection
 - JUnit output

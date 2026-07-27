@@ -85,8 +85,8 @@ def load_langchain_target(import_path: str) -> Any:
 
     if not _is_supported_target(target):
         raise AdapterError(
-            "LangChain/LangGraph target must provide an invoke(input) method "
-            "or be a callable runner function"
+            "LangChain/LangGraph target must provide an invoke(input) or "
+            "stream(input) method, or be a callable runner function"
         )
 
     return target
@@ -98,10 +98,21 @@ def run_langchain_target(
     *,
     config: dict[str, Any] | None = None,
     goal_event_id: str | None = None,
+    stream_updates: bool = False,
 ) -> Trace:
     """Run a scenario against a supported LangChain/LangGraph target."""
     _validate_goal_event_id(goal_event_id)
     langchain_input = build_langchain_input(scenario)
+
+    if stream_updates:
+        updates = _stream_target_updates(target, langchain_input, config=config)
+        return langchain_stream_updates_to_trace(
+            scenario,
+            updates,
+            runner_input=langchain_input,
+            goal_event_id=goal_event_id,
+        )
+
     result = _invoke_target(target, langchain_input, config=config)
 
     return langchain_result_to_trace(
@@ -141,6 +152,47 @@ def langchain_result_to_trace(
 
     for event in _extract_events(result):
         _record_event(recorder, event)
+
+    return recorder.to_trace()
+
+
+def langchain_stream_updates_to_trace(
+    scenario: Scenario,
+    updates: list[Any],
+    *,
+    runner_input: dict[str, Any],
+    goal_event_id: str | None = None,
+) -> Trace:
+    """Convert synchronous LangGraph ``stream_mode="updates"`` chunks to a trace."""
+    _validate_goal_event_id(goal_event_id)
+
+    if not updates:
+        raise AdapterError("LangChain/LangGraph update stream produced no chunks")
+
+    recorder = TraceRecorder()
+    recorder.add_message("user", _messages_user_content(runner_input))
+
+    for update in updates:
+        for payload in _iter_stream_update_payloads(update):
+            for message in _iter_messages(payload):
+                if _message_role(message) != "assistant":
+                    continue
+
+                content = _message_content(message)
+                if content:
+                    recorder.add_message("assistant", content)
+
+            for tool_call in extract_langchain_tool_calls(payload):
+                recorder.add_tool_call(tool_call["name"], tool_call["arguments"])
+
+            for event in _extract_events(payload):
+                _record_event(recorder, event)
+
+    recorder.add_event("adapter", LANGCHAIN_ADAPTER_ID)
+    recorder.add_event("scenario", scenario.id)
+
+    if goal_event_id is not None:
+        recorder.add_event("goal", goal_event_id)
 
     return recorder.to_trace()
 
@@ -191,8 +243,50 @@ def _invoke_target(
     )
 
 
+def _stream_target_updates(
+    target: Any,
+    langchain_input: dict[str, Any],
+    *,
+    config: dict[str, Any] | None,
+) -> list[Any]:
+    stream = getattr(target, "stream", None)
+
+    if not callable(stream):
+        raise AdapterError(
+            "LangChain/LangGraph update streaming requires a target with a "
+            "stream(input, stream_mode='updates') method"
+        )
+
+    try:
+        if config is None:
+            return list(stream(langchain_input, stream_mode="updates"))
+        return list(
+            stream(
+                langchain_input,
+                config=config,
+                stream_mode="updates",
+            )
+        )
+    except Exception as exc:
+        raise AdapterError(f"LangChain/LangGraph update stream failed: {exc}") from exc
+
+
 def _is_supported_target(target: Any) -> bool:
-    return callable(getattr(target, "invoke", None)) or callable(target)
+    return (
+        callable(getattr(target, "invoke", None))
+        or callable(getattr(target, "stream", None))
+        or callable(target)
+    )
+
+
+def _iter_stream_update_payloads(update: Any) -> list[Any]:
+    if not isinstance(update, dict):
+        raise AdapterError("LangChain/LangGraph update stream chunks must be objects")
+
+    if "messages" in update or _looks_like_message(update):
+        return [update]
+
+    return [payload for payload in update.values() if payload is not None]
 
 
 def _validate_goal_event_id(goal_event_id: str | None) -> None:

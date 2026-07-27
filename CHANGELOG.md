@@ -17,6 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   as per-scenario `error`s without aborting the suite, and `--exit-on-fail`
   composes the same way as `run`. Output validates against the new
   `schemas/suite_result.schema.json`. Single-scenario `run` is unchanged.
+- **`--sarif-out` flag** — write assertion results as SARIF 2.1.0 for GitHub
+  Code Scanning and other SARIF-aware dashboards. Only `fail` and `error`
+  assertions are emitted as results, since SARIF results represent findings.
+- **LangGraph update-stream traces** — add opt-in
+  `--langchain-stream-updates` execution for synchronous
+  `stream_mode="updates"` targets while preserving the existing `invoke()` path.
+- **`--openai-agent-goal-event` flag** — record an explicit `goal` event for
+  OpenAI Agents SDK runs so `goal_integrity` assertions can be evaluated
+  without inferring intent from model output.
 - **`--junit-out` flag** — write assertion results as JUnit XML for CI
   systems while preserving the existing result JSON output.
 - **MCP host CLI wiring** — add `agent-harness run --mcp-host-target ...`
@@ -41,7 +50,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `schemas/scenario.schema.json`). Ids are used as filesystem path components
   by the new `suite` runner, so this prevents an id from traversing paths
   outside the configured trace or output directory. All bundled scenarios
-  already comply.
+  already comply. This narrows a previously-valid input, so per
+  `docs/schema-versioning.md` it is a **breaking** schema change:
+  `schemas/scenario.schema.json` is bumped to `"version": 2`. Per the pre-1.0
+  rule, the package version is not bumped to a new major line.
 
 ## [0.1.0] — 2026-05-17
 

@@ -118,6 +118,7 @@ def run_scenario_with_openai_agent(
     openai_agent: str,
     *,
     max_turns: int | None = None,
+    goal_event_id: str | None = None,
 ) -> HarnessResult:
     """Run a scenario against an OpenAI Agents SDK Agent target."""
     agent = load_python_object(openai_agent, "OpenAI Agents SDK target")
@@ -125,6 +126,7 @@ def run_scenario_with_openai_agent(
         scenario,
         agent,
         max_turns=max_turns,
+        goal_event_id=goal_event_id,
     )
     assertion_results = evaluate_assertions(scenario, trace)
     top_level_result = aggregate_assertion_results(assertion_results)
@@ -189,6 +191,7 @@ def run_scenario_with_langchain_target(
     langchain_target: str,
     *,
     goal_event_id: str | None = None,
+    stream_updates: bool = False,
 ) -> HarnessResult:
     """Run a scenario against a LangChain/LangGraph target."""
     target = load_langchain_target(langchain_target)
@@ -196,6 +199,7 @@ def run_scenario_with_langchain_target(
         scenario,
         target,
         goal_event_id=goal_event_id,
+        stream_updates=stream_updates,
     )
     assertion_results = evaluate_assertions(scenario, trace)
     top_level_result = aggregate_assertion_results(assertion_results)
@@ -220,7 +224,7 @@ def _suite_error_result(scenario: Scenario, evidence: str) -> HarnessResult:
     )
 
 
-def _resolve_within(base: Path, name: str) -> Path:
+def resolve_within(base: Path, name: str) -> Path:
     """Join ``name`` onto ``base`` and confirm it stays inside ``base``.
 
     Defense in depth on top of scenario-id charset validation: even if an id
@@ -280,7 +284,7 @@ def run_suite(
         seen_ids[scenario.id] = path_str
 
         try:
-            trace_path = _resolve_within(trace_dir_path, f"{scenario.id}.json")
+            trace_path = resolve_within(trace_dir_path, f"{scenario.id}.json")
         except ValueError as exc:
             entries.append(
                 SuiteEntry(
