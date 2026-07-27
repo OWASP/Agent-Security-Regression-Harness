@@ -164,7 +164,7 @@ def run_scenario_with_mcp_host_target(
     mcp_host_target: str,
     runtime_config_path: str,
 ) -> HarnessResult:
-    """Run a scenario against a local target through the MCP stdio host."""
+    """Run a scenario against a local target through the MCP host runtime."""
     from agent_harness import mcp_host, mcp_runtime
 
     target_callable = cast("MCPHostTarget", load_python_callable(mcp_host_target))

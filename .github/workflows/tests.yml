@@ -52,6 +52,51 @@ jobs:
           name: coverage-report
           path: htmlcov/
 
+  mcp-sdk-compatibility:
+    name: MCP SDK compatibility (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: minimum
+            mcp_spec: "mcp==1.12.4"
+            expected_api: "legacy"
+          - name: latest-v1
+            mcp_spec: "mcp>=1.12.4,<2"
+            expected_api: "modern"
+    env:
+      EXPECTED_MCP_HTTP_API: ${{ matrix.expected_api }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install harness
+        run: python -m pip install -e ".[dev]"
+      - name: Install MCP SDK boundary
+        run: python -m pip install --upgrade "${{ matrix.mcp_spec }}"
+      - name: Check installed dependencies
+        run: python -m pip check
+      - name: Show compatibility versions
+        run: |
+          python - <<'PY'
+          import importlib.metadata
+          import platform
+
+          print(f"Python {platform.python_version()}")
+          print(f"MCP {importlib.metadata.version('mcp')}")
+          print(f"HTTPX {importlib.metadata.version('httpx')}")
+          PY
+      - name: Run MCP compatibility tests
+        run: |
+          python -m pytest \
+            tests/test_mcp_sdk_compat.py \
+            tests/test_mcp_host.py \
+            tests/test_mcp_runtime.py
+
   security-regression:
     name: Run security regression scenarios
     runs-on: ubuntu-latest

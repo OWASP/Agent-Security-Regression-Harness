@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **MCP Streamable HTTP transport** — add `transport: streamable_http` server
+  entries with a required `url` and optional static `headers` to the MCP host
+  runtime alongside the existing stdio transport.
+
 ## [0.2.0] — 2026-07-27
 
 Hardening and CI ergonomics. This release makes the harness comfortable to run

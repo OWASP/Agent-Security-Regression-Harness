@@ -681,11 +681,16 @@ payload as the user message. If the target returns `assistant_message` or
 
 ### MCP host adapter
 
-The MCP host adapter runs a deterministic local Python target with a real MCP
-host context. Unlike `--mcp-target`, which accepts a workflow callable that
-reports already-observed MCP activity, `--mcp-host-target` starts configured
-stdio MCP servers and captures host-owned MCP evidence while the target calls
-tools through the host.
+The two MCP execution flags serve different purposes:
+
+- `--mcp-target` executes an MCP workflow callable that reports activity the
+  workflow has already observed. It does not start servers or act as the real
+  host.
+- `--mcp-host-target` loads a local target callable and executes it through the
+  real MCP host runtime. The runtime connects the configured `stdio` and
+  `streamable_http` servers and captures host-owned MCP evidence.
+- `--mcp-runtime-config` supplies the server configuration consumed by
+  `--mcp-host-target`; it does not apply to `--mcp-target`.
 
 Use `--mcp-host-target` when the target callable needs this two-argument
 contract:
@@ -709,8 +714,9 @@ adapters, plus an `MCPHostContext`. Synchronous targets call
 `host.call_tool(...)`. Async targets should use `await host.async_call_tool(...)`.
 
 Runtime server details are supplied by a separate YAML file, not by the
-scenario. This keeps portable scenario policy separate from local commands,
-paths, environment values, working directories, and timeouts.
+scenario. This keeps portable scenario policy separate from transport URLs,
+static headers, local commands, paths, environment values, working directories,
+and timeouts.
 
 Scenario example:
 
@@ -736,7 +742,7 @@ assertions:
   - type: no_denied_tool_call
 ```
 
-Runtime config example:
+`stdio` runtime configuration example:
 
 ```yaml
 servers:
@@ -750,25 +756,79 @@ servers:
     timeout_seconds: 5
 ```
 
+The example uses the repository's deterministic filesystem fixture. For a
+local fixture run, `MCP_FILESYSTEM_ROOT` must name an existing directory that
+contains the fixture marker file `.mcp_fixture_root`.
+
+Streamable HTTP runtime configuration example:
+
+```yaml
+servers:
+  - id: remote_tools
+    transport: streamable_http
+    url: https://mcp.example.test/mcp
+    headers:
+      X-Client-Name: agent-harness
+    timeout_seconds: 30
+```
+
+Every server must declare `transport` explicitly; omitting it does not silently
+select `stdio`. A single `servers` list may contain both transports. Their
+transport-specific configuration is discriminated as follows:
+
+| Transport | Required | Optional | Rejected |
+| --- | --- | --- | --- |
+| `stdio` | `command` | `args`, `env`, `cwd`, `timeout_seconds` | `url`, `headers` |
+| `streamable_http` | `url` | `headers`, `timeout_seconds` | `command`, `args`, `env`, `cwd` |
+
+Transport-specific fields are rejected rather than silently ignored.
+`timeout_seconds` is the single per-server timeout used by transport and MCP
+host operations; when omitted, it defaults to 5 seconds.
+
+Streamable HTTP `headers` are optional static pass-through values. Custom
+headers such as `Authorization` or `X-Api-Key` are accepted, but the runtime
+does not provide OAuth, token refresh, authorization discovery, credential
+storage, or credential lifecycle management. Protocol-owned and HTTP framing
+headers cannot be overridden. Keep sensitive values outside committed
+configuration and supply them through an appropriate configuration-generation
+or secret-management workflow.
+
+Automatic redirects are not followed. Configure the final MCP endpoint URL
+directly; the host will not forward configured custom headers to a redirected
+origin or automatically correct endpoint path variants.
+
 CLI usage:
 
 ```bash
 agent-harness run scenarios/mcp_trust_boundary/untrusted_server_delete_file_001.yaml \
-  --mcp-host-target examples.targets.mcp_host_agent:run_agent \
+  --mcp-host-target your_package.mcp_agent:run_agent \
   --mcp-runtime-config ./mcp-runtime.yaml
 ```
 
-`--mcp-runtime-config` is required when using `--mcp-host-target`. It only
-applies to `--mcp-host-target`; the workflow adapter continues to use
-`--mcp-target` without starting servers.
+Here `your_package.mcp_agent:run_agent` is the user's host target and must
+implement the two-argument callable contract shown above.
 
 The host owns MCP evidence fields such as `mcp_servers`, `mcp_tool_calls`, and
 `mcp_events`. Host targets should return normal assistant output or trace-shaped
 non-MCP data; they should not forge MCP tool calls or MCP lifecycle events.
 
-This adapter section covers local stdio host execution only. Streamable HTTP
-transport, OAuth, resources, prompts, sampling, and default-deny roots are
-separate design phases.
+Both transports produce the same canonical `mcp_servers`, `mcp_tool_calls`, and
+`mcp_events` collections. A successful tool run records this lifecycle:
+
+```text
+mcp_connection_initialized
+mcp_tools_discovered
+mcp_tool_result
+mcp_connection_closed
+```
+
+For Streamable HTTP, the configured URL and header values are used to establish
+the connection but are not included in canonical MCP metadata or lifecycle
+events. Normal operational host failures surface as `AdapterError`.
+
+Configured SSE, OAuth and authenticated transport lifecycle, MCP resources,
+prompts, sampling, roots, and default-deny roots remain outside this adapter's
+current scope.
 
 ### HTTP adapter
 

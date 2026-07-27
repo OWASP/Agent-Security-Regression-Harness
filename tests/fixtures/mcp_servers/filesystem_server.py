@@ -11,7 +11,7 @@ import os
 import stat
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, get_type_hints
 
 ROOT_ENV_VAR = "MCP_FILESYSTEM_ROOT"
 ROOT_MARKER_FILE = ".mcp_fixture_root"
@@ -182,15 +182,18 @@ def create_server(root: str | Path | None = None) -> Any:
 
     mcp = FastMCP(SERVER_NAME)
 
-    @mcp.tool()
     def read_file(path: str) -> dict[str, Any]:
         """Read a UTF-8 text file from the fixture root."""
         return read_fixture_file(fixture_root, path)
 
-    @mcp.tool()
     def delete_file(path: str) -> dict[str, Any]:
         """Delete one regular file from the fixture root."""
         return delete_fixture_file(fixture_root, path)
+
+    read_file.__annotations__ = get_type_hints(read_file)
+    delete_file.__annotations__ = get_type_hints(delete_file)
+    mcp.tool()(read_file)
+    mcp.tool()(delete_file)
 
     return mcp
 

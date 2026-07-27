@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -11,10 +13,16 @@ from agent_harness.mcp_runtime import (
     DEFAULT_MCP_TIMEOUT_SECONDS,
     MCP_INSTALL_HINT,
     MCPHostRuntime,
+    MCPServerConfig,
     ensure_mcp_sdk_available,
     load_mcp_runtime_config,
     parse_mcp_runtime_config,
 )
+
+
+def parse_single_server(server: dict[str, Any]) -> MCPServerConfig:
+    config = parse_mcp_runtime_config({"servers": [server]})
+    return config.get_server(server["id"])
 
 
 def test_load_mcp_runtime_config_accepts_valid_list_shape(tmp_path):
@@ -103,6 +111,417 @@ def test_parse_mcp_runtime_config_accepts_explicit_env_and_cwd():
     }
 
 
+def test_stdio_defaults_equality_and_positional_constructor_remain_compatible():
+    parsed_server = parse_single_server(
+        {
+            "id": "filesystem_fixture",
+            "transport": "stdio",
+            "command": "python",
+        }
+    )
+    expected_server = MCPServerConfig(
+        "filesystem_fixture",
+        "stdio",
+        "python",
+        (),
+        (),
+        None,
+        DEFAULT_MCP_TIMEOUT_SECONDS,
+    )
+
+    assert parsed_server == expected_server
+    assert parsed_server.url is None
+    assert parsed_server.headers == ()
+
+
+def test_parse_mcp_runtime_config_rejects_missing_transport():
+    with pytest.raises(AdapterError, match="transport must be a non-empty string"):
+        parse_mcp_runtime_config(
+            {
+                "servers": [
+                    {
+                        "id": "filesystem_fixture",
+                        "command": "python",
+                    }
+                ]
+            }
+        )
+
+
+def test_parse_streamable_http_accepts_url_only():
+    server = parse_single_server(
+        {
+            "id": "remote_fixture",
+            "transport": "streamable_http",
+            "url": "https://example.test/mcp",
+        }
+    )
+
+    assert server.transport == "streamable_http"
+    assert server.command is None
+    assert server.args == ()
+    assert server.env == ()
+    assert server.cwd is None
+    assert server.url == "https://example.test/mcp"
+    assert server.headers == ()
+    assert server.timeout_seconds == DEFAULT_MCP_TIMEOUT_SECONDS
+
+
+def test_parse_streamable_http_accepts_headers_and_timeout_in_declaration_order():
+    server = parse_single_server(
+        {
+            "id": "remote_fixture",
+            "transport": "streamable_http",
+            "url": "https://example.test/mcp",
+            "headers": {
+                "X-Client-Name": "agent-harness",
+                "X-Request-Mode": "regression",
+            },
+            "timeout_seconds": 30,
+        }
+    )
+
+    assert server.headers == (
+        ("X-Client-Name", "agent-harness"),
+        ("X-Request-Mode", "regression"),
+    )
+    assert server.timeout_seconds == 30.0
+
+
+def test_streamable_http_headers_are_immutable():
+    server = parse_single_server(
+        {
+            "id": "remote_fixture",
+            "transport": "streamable_http",
+            "url": "https://example.test/mcp",
+            "headers": {"X-Client-Name": "agent-harness"},
+        }
+    )
+
+    assert isinstance(server.headers, tuple)
+    with pytest.raises(FrozenInstanceError):
+        server.headers = ()  # type: ignore[misc]
+
+
+def test_streamable_http_repr_omits_url_and_headers():
+    config = parse_mcp_runtime_config(
+        {
+            "servers": [
+                {
+                    "id": "remote_fixture",
+                    "transport": "streamable_http",
+                    "url": "https://example.test/mcp?token=url-secret",
+                    "headers": {"X-Api-Key": "header-secret"},
+                }
+            ]
+        }
+    )
+
+    config_repr = repr(config)
+    assert "url=" not in config_repr
+    assert "headers=" not in config_repr
+    assert "url-secret" not in config_repr
+    assert "header-secret" not in config_repr
+
+
+def test_parse_streamable_http_requires_url():
+    with pytest.raises(AdapterError, match="url must be a non-empty string"):
+        parse_single_server(
+            {
+                "id": "remote_fixture",
+                "transport": "streamable_http",
+            }
+        )
+
+
+@pytest.mark.parametrize("url", [None, "", " "])
+def test_parse_streamable_http_rejects_empty_url_values(url):
+    with pytest.raises(AdapterError, match="url must be a non-empty string"):
+        parse_single_server(
+            {
+                "id": "remote_fixture",
+                "transport": "streamable_http",
+                "url": url,
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    ("url", "error"),
+    [
+        ("ftp://example.test/mcp", "url scheme must be http or https"),
+        ("https:///mcp", "url must include a host"),
+        ("https://user@example.test/mcp", "url must not include credentials"),
+        ("https://user:password@example.test/mcp", "url must not include credentials"),
+        ("https://example.test/mcp#tools", "url must not include a fragment"),
+        (r"https://example.test\mcp", "url must not contain backslashes"),
+        ("https://example .test/mcp", "url must not contain spaces"),
+        ("https://example.test:not-a-port/mcp", "url is invalid"),
+        ("https://example.test:65536/mcp", "url is invalid"),
+        ("https://[::1/mcp", "url is invalid"),
+    ],
+)
+def test_parse_streamable_http_rejects_invalid_urls(url, error):
+    with pytest.raises(AdapterError, match=error):
+        parse_single_server(
+            {
+                "id": "remote_fixture",
+                "transport": "streamable_http",
+                "url": url,
+            }
+        )
+
+
+@pytest.mark.parametrize("control", ["\x00", "\t", "\n", "\r", "\x1f", "\x7f"])
+def test_parse_streamable_http_rejects_url_ascii_controls(control):
+    with pytest.raises(AdapterError, match="url must not contain ASCII control"):
+        parse_single_server(
+            {
+                "id": "remote_fixture",
+                "transport": "streamable_http",
+                "url": f"https://example.test/mcp{control}",
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://example.test/mcp?mode=regression&limit=10",
+        "http://localhost:8000/mcp",
+        "http://192.168.1.25/mcp",
+        "http://[::1]:8000/mcp",
+    ],
+)
+def test_parse_streamable_http_accepts_supported_url_forms_without_rewriting(url):
+    server = parse_single_server(
+        {
+            "id": "remote_fixture",
+            "transport": "streamable_http",
+            "url": url,
+        }
+    )
+
+    assert server.url == url
+
+
+@pytest.mark.parametrize("headers", [None, [], "X-Test: value"])
+def test_parse_streamable_http_requires_headers_mapping(headers):
+    with pytest.raises(AdapterError, match="headers must be an object"):
+        parse_single_server(
+            {
+                "id": "remote_fixture",
+                "transport": "streamable_http",
+                "url": "https://example.test/mcp",
+                "headers": headers,
+            }
+        )
+
+
+def test_parse_streamable_http_requires_string_header_names():
+    with pytest.raises(AdapterError, match="header names must be strings"):
+        parse_single_server(
+            {
+                "id": "remote_fixture",
+                "transport": "streamable_http",
+                "url": "https://example.test/mcp",
+                "headers": {123: "value"},
+            }
+        )
+
+
+def test_parse_streamable_http_requires_string_header_values():
+    with pytest.raises(AdapterError, match="header 'X-Retry' value must be a string"):
+        parse_single_server(
+            {
+                "id": "remote_fixture",
+                "transport": "streamable_http",
+                "url": "https://example.test/mcp",
+                "headers": {"X-Retry": 3},
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["", "Bad Header", "Bad:Header", " Header", "X-Ünicode"],
+)
+def test_parse_streamable_http_rejects_invalid_header_names(name):
+    error = (
+        "header names must be non-empty strings"
+        if not name
+        else "header name is invalid"
+    )
+    with pytest.raises(AdapterError, match=error):
+        parse_single_server(
+            {
+                "id": "remote_fixture",
+                "transport": "streamable_http",
+                "url": "https://example.test/mcp",
+                "headers": {name: "value"},
+            }
+        )
+
+
+def test_parse_streamable_http_rejects_duplicate_header_names_case_insensitively():
+    with pytest.raises(AdapterError, match="duplicate header name"):
+        parse_single_server(
+            {
+                "id": "remote_fixture",
+                "transport": "streamable_http",
+                "url": "https://example.test/mcp",
+                "headers": {
+                    "X-Client-Name": "first",
+                    "x-client-name": "second",
+                },
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "Accept",
+        "content-TYPE",
+        "Mcp-Session-Id",
+        "mcp-protocol-version",
+        "Last-Event-ID",
+        "HOST",
+        "Content-Length",
+        "transfer-encoding",
+        "Connection",
+    ],
+)
+def test_parse_streamable_http_rejects_reserved_headers_case_insensitively(name):
+    with pytest.raises(AdapterError, match="header .* is reserved"):
+        parse_single_server(
+            {
+                "id": "remote_fixture",
+                "transport": "streamable_http",
+                "url": "https://example.test/mcp",
+                "headers": {name: "reserved-value"},
+            }
+        )
+
+
+@pytest.mark.parametrize("control", ["\x00", "\t", "\n", "\r", "\x1f", "\x7f"])
+def test_parse_streamable_http_rejects_header_value_ascii_controls(control):
+    with pytest.raises(AdapterError, match="value must not contain ASCII control"):
+        parse_single_server(
+            {
+                "id": "remote_fixture",
+                "transport": "streamable_http",
+                "url": "https://example.test/mcp",
+                "headers": {"X-Test": f"safe{control}secret"},
+            }
+        )
+
+
+def test_parse_streamable_http_accepts_static_authorization_and_custom_headers():
+    server = parse_single_server(
+        {
+            "id": "remote_fixture",
+            "transport": "streamable_http",
+            "url": "https://example.test/mcp",
+            "headers": {
+                "Authorization": "Bearer test-token",
+                "X-Api-Key": "test-key",
+                "X-Custom": "custom-value",
+            },
+        }
+    )
+
+    assert server.headers == (
+        ("Authorization", "Bearer test-token"),
+        ("X-Api-Key", "test-key"),
+        ("X-Custom", "custom-value"),
+    )
+
+
+@pytest.mark.parametrize(("field_name", "value"), [("url", None), ("headers", {})])
+def test_stdio_rejects_streamable_http_fields_by_presence(field_name, value):
+    with pytest.raises(AdapterError, match=f"field {field_name!r} is not allowed"):
+        parse_single_server(
+            {
+                "id": "filesystem_fixture",
+                "transport": "stdio",
+                "command": "python",
+                field_name: value,
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [
+        ("command", ""),
+        ("command", None),
+        ("args", []),
+        ("args", None),
+        ("env", {}),
+        ("env", None),
+        ("cwd", ""),
+        ("cwd", None),
+    ],
+)
+def test_streamable_http_rejects_stdio_fields_by_presence(field_name, value):
+    with pytest.raises(AdapterError, match=f"field {field_name!r} is not allowed"):
+        parse_single_server(
+            {
+                "id": "remote_fixture",
+                "transport": "streamable_http",
+                "url": "https://example.test/mcp",
+                field_name: value,
+            }
+        )
+
+
+def test_runtime_config_preserves_existing_unknown_field_policy():
+    server = parse_single_server(
+        {
+            "id": "filesystem_fixture",
+            "transport": "stdio",
+            "command": "python",
+            "unknown_future_field": "ignored",
+        }
+    )
+
+    assert server.command == "python"
+
+
+def test_header_validation_error_does_not_reveal_header_value():
+    secret = "header-secret"
+
+    with pytest.raises(AdapterError) as exc_info:
+        parse_single_server(
+            {
+                "id": "remote_fixture",
+                "transport": "streamable_http",
+                "url": "https://example.test/mcp",
+                "headers": {"X-Api-Key": f"{secret}\n"},
+            }
+        )
+
+    assert secret not in str(exc_info.value)
+
+
+def test_url_validation_error_does_not_reveal_url_or_query():
+    secret = "query-secret"
+    url = f"https://example.test:not-a-port/mcp?token={secret}"
+
+    with pytest.raises(AdapterError) as exc_info:
+        parse_single_server(
+            {
+                "id": "remote_fixture",
+                "transport": "streamable_http",
+                "url": url,
+            }
+        )
+
+    assert url not in str(exc_info.value)
+    assert secret not in str(exc_info.value)
+
+
 def test_parse_mcp_runtime_config_rejects_empty_servers():
     with pytest.raises(AdapterError, match="at least one server"):
         parse_mcp_runtime_config({"servers": []})
@@ -159,13 +578,13 @@ def test_parse_mcp_runtime_config_rejects_duplicate_server_ids():
 
 
 def test_parse_mcp_runtime_config_rejects_unknown_transport():
-    with pytest.raises(AdapterError, match="transport 'streamable_http' is not supported"):
+    with pytest.raises(AdapterError, match="transport 'websocket' is not supported"):
         parse_mcp_runtime_config(
             {
                 "servers": [
                     {
                         "id": "filesystem_fixture",
-                        "transport": "streamable_http",
+                        "transport": "websocket",
                         "command": "python",
                     }
                 ]

@@ -8,17 +8,35 @@ MCP SDK dependency optional and lazily imported.
 from __future__ import annotations
 
 import importlib
+import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import yaml
 
 from agent_harness.adapters import AdapterError
 
 DEFAULT_MCP_TIMEOUT_SECONDS = 5.0
-SUPPORTED_MCP_TRANSPORTS = frozenset({"stdio"})
+SUPPORTED_MCP_TRANSPORTS = frozenset({"stdio", "streamable_http"})
+_HTTP_HEADER_NAME_PATTERN = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$")
+_RESERVED_MCP_HTTP_HEADERS = frozenset(
+    {
+        "accept",
+        "connection",
+        "content-length",
+        "content-type",
+        "host",
+        "last-event-id",
+        "mcp-protocol-version",
+        "mcp-session-id",
+        "transfer-encoding",
+    }
+)
+_STDIO_ONLY_FIELDS = ("command", "args", "env", "cwd")
+_STREAMABLE_HTTP_ONLY_FIELDS = ("url", "headers")
 MCP_INSTALL_HINT = (
     "MCP adapter dependencies are not installed. "
     'Install them with: python -m pip install '
@@ -32,11 +50,13 @@ class MCPServerConfig:
 
     id: str
     transport: str
-    command: str
+    command: str | None
     args: tuple[str, ...] = ()
     env: tuple[tuple[str, str], ...] = ()
     cwd: Path | None = None
     timeout_seconds: float = DEFAULT_MCP_TIMEOUT_SECONDS
+    url: str | None = field(default=None, repr=False)
+    headers: tuple[tuple[str, str], ...] = field(default=(), repr=False)
 
 
 @dataclass(frozen=True)
@@ -161,10 +181,24 @@ def _parse_server_config(
     label = _server_label(index)
     server_id = _server_id_from_entry(index, entry)
     transport = _parse_transport(label, entry)
-    command = _parse_stdio_command(label, entry, transport)
-    args = _parse_args(label, entry)
-    env = _parse_env(label, entry)
-    cwd = _parse_cwd(label, entry)
+    _validate_transport_fields(label, entry, transport)
+
+    command: str | None = None
+    args: tuple[str, ...] = ()
+    env: tuple[tuple[str, str], ...] = ()
+    cwd: Path | None = None
+    url: str | None = None
+    headers: tuple[tuple[str, str], ...] = ()
+
+    if transport == "stdio":
+        command = _parse_stdio_command(label, entry)
+        args = _parse_args(label, entry)
+        env = _parse_env(label, entry)
+        cwd = _parse_cwd(label, entry)
+    else:
+        url = _parse_streamable_http_url(label, entry)
+        headers = _parse_headers(label, entry)
+
     timeout_seconds = _parse_timeout_seconds(label, entry)
 
     return MCPServerConfig(
@@ -175,6 +209,8 @@ def _parse_server_config(
         env=env,
         cwd=cwd,
         timeout_seconds=timeout_seconds,
+        url=url,
+        headers=headers,
     )
 
 
@@ -218,14 +254,7 @@ def _parse_transport(label: str, entry: dict[str, Any]) -> str:
     return transport
 
 
-def _parse_stdio_command(
-    label: str,
-    entry: dict[str, Any],
-    transport: str,
-) -> str:
-    if transport != "stdio":
-        raise AdapterError(f"{label} transport is not implemented: {transport}")
-
+def _parse_stdio_command(label: str, entry: dict[str, Any]) -> str:
     command = entry.get("command")
     if not isinstance(command, str) or not command.strip():
         raise AdapterError(f"{label} command must be a non-empty string")
@@ -278,6 +307,100 @@ def _parse_cwd(label: str, entry: dict[str, Any]) -> Path | None:
         raise AdapterError(f"{label} cwd must be a non-empty string")
 
     return Path(cwd.strip())
+
+
+def _validate_transport_fields(
+    label: str,
+    entry: dict[str, Any],
+    transport: str,
+) -> None:
+    forbidden_fields = (
+        _STREAMABLE_HTTP_ONLY_FIELDS
+        if transport == "stdio"
+        else _STDIO_ONLY_FIELDS
+    )
+
+    for field_name in forbidden_fields:
+        if field_name in entry:
+            raise AdapterError(
+                f"{label} field {field_name!r} is not allowed for "
+                f"transport {transport!r}"
+            )
+
+
+def _parse_streamable_http_url(label: str, entry: dict[str, Any]) -> str:
+    url = entry.get("url")
+    if not isinstance(url, str) or not url.strip():
+        raise AdapterError(f"{label} url must be a non-empty string")
+
+    if "\\" in url:
+        raise AdapterError(f"{label} url must not contain backslashes")
+
+    if " " in url:
+        raise AdapterError(f"{label} url must not contain spaces")
+
+    if any(ord(character) < 32 or ord(character) == 127 for character in url):
+        raise AdapterError(f"{label} url must not contain ASCII control characters")
+
+    try:
+        parsed = urlsplit(url)
+        hostname = parsed.hostname
+        _ = parsed.port
+    except ValueError as exc:
+        raise AdapterError(f"{label} url is invalid") from exc
+
+    if parsed.scheme not in {"http", "https"}:
+        raise AdapterError(f"{label} url scheme must be http or https")
+
+    if hostname is None:
+        raise AdapterError(f"{label} url must include a host")
+
+    if parsed.username is not None or parsed.password is not None:
+        raise AdapterError(f"{label} url must not include credentials")
+
+    if "#" in url:
+        raise AdapterError(f"{label} url must not include a fragment")
+
+    return url
+
+
+def _parse_headers(
+    label: str,
+    entry: dict[str, Any],
+) -> tuple[tuple[str, str], ...]:
+    headers = entry.get("headers", {})
+    if not isinstance(headers, dict):
+        raise AdapterError(f"{label} headers must be an object")
+
+    normalized_headers: list[tuple[str, str]] = []
+    seen_names: set[str] = set()
+
+    for name, value in headers.items():
+        if not isinstance(name, str):
+            raise AdapterError(f"{label} header names must be strings")
+        if not name:
+            raise AdapterError(f"{label} header names must be non-empty strings")
+        if _HTTP_HEADER_NAME_PATTERN.fullmatch(name) is None:
+            raise AdapterError(f"{label} header name is invalid: {name!r}")
+
+        normalized_name = name.casefold()
+        if normalized_name in seen_names:
+            raise AdapterError(f"{label} contains duplicate header name: {name!r}")
+        if normalized_name in _RESERVED_MCP_HTTP_HEADERS:
+            raise AdapterError(f"{label} header {name!r} is reserved")
+
+        if not isinstance(value, str):
+            raise AdapterError(f"{label} header {name!r} value must be a string")
+        if any(ord(character) < 32 or ord(character) == 127 for character in value):
+            raise AdapterError(
+                f"{label} header {name!r} value must not contain "
+                "ASCII control characters"
+            )
+
+        seen_names.add(normalized_name)
+        normalized_headers.append((name, value))
+
+    return tuple(normalized_headers)
 
 
 def _parse_timeout_seconds(label: str, entry: dict[str, Any]) -> float:

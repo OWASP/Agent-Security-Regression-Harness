@@ -306,16 +306,16 @@ For `stdio` servers:
 For Streamable HTTP servers:
 
 - Require explicit server URLs from runtime configuration.
-- Record the URL origin, not credentials.
-- Send the negotiated MCP protocol version header after initialization.
-- Do not follow redirects to a different origin unless explicitly configured.
-- Keep authentication tokens scoped to the intended MCP server.
-- Do not pass through tokens issued for some other service as if they were MCP
-  server tokens.
+- Do not include configured URLs or header values in canonical trace metadata.
+- Do not follow automatic redirects; require the final endpoint URL.
+- Accept optional static headers while leaving OAuth, token refresh,
+  authorization discovery, and credential lifecycle management out of scope.
+- Reject protocol-owned and HTTP framing headers rather than allowing runtime
+  configuration to override them.
 
 HTTP metadata discovery and OAuth flows can create SSRF and confused-deputy
-risks. The adapter should support allowlists for hosts, schemes, and redirect
-behavior before enabling remote MCP servers in tests.
+risks. Origin allowlists, OAuth flows, and broader SSRF policy remain separate
+future work rather than implicit behavior of the Streamable HTTP transport.
 
 ## Policy Mapping
 
@@ -392,8 +392,10 @@ HTTP coverage because stdio is easier to run deterministically in CI.
    tools, call tools through a deterministic fake target, and emit traces.
 4. Add resource and prompt tracing.
 5. Add default-deny handling for roots, sampling, and elicitation.
-6. Add Streamable HTTP support with origin allowlists and redacted auth
-   handling.
+6. Add Streamable HTTP transport plumbing with optional static headers, no
+   OAuth lifecycle, redirects disabled, and URL/header omission from trace
+   metadata. Implemented by issue #161; origin allowlists and OAuth remain
+   future work.
 7. Add MCP-specific assertions after trace conventions are stable.
 
 ## References

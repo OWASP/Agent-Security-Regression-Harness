@@ -12,11 +12,11 @@ import importlib
 import inspect
 import json
 import threading
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from contextlib import AsyncExitStack
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal, Protocol, cast
 
 from agent_harness.adapters import AdapterError
 from agent_harness.mcp_adapter import (
@@ -37,6 +37,8 @@ MCPHostTarget = Callable[
     [dict[str, Any], "MCPHostContext"],
     MCPHostTargetResult | Awaitable[MCPHostTargetResult],
 ]
+_StreamableHTTPClientCallable = Callable[..., Any]
+_HTTPXClientFactory = Callable[..., Any]
 
 DEFAULT_RESULT_CONTENT_LIMIT = 4096
 MAX_ERROR_MESSAGE_LENGTH = 512
@@ -70,6 +72,18 @@ class _MCPSDK:
     ClientSession: Any
     StdioServerParameters: Any
     stdio_client: Any
+    streamable_http_client: _StreamableHTTPClientCallable | None = None
+    streamablehttp_client: _StreamableHTTPClientCallable | None = None
+
+
+@dataclass(frozen=True)
+class _SelectedStreamableHTTPClient:
+    kind: Literal["modern", "legacy"]
+    client: _StreamableHTTPClientCallable
+
+
+class _IndexableTransportResult(Protocol):
+    def __getitem__(self, index: int, /) -> Any: ...
 
 
 @dataclass
@@ -186,6 +200,7 @@ class MCPHostContext:
                 timeout=connection.config.timeout_seconds,
             )
         except Exception as exc:
+            error_message = _mcp_tool_error_message(connection.config, exc)
             self._mcp_events.append(
                 {
                     "type": "mcp_tool_result",
@@ -193,13 +208,14 @@ class MCPHostContext:
                     "server_id": normalized_server_id,
                     "tool_name": normalized_tool_name,
                     "is_error": True,
-                    "error": _safe_error_message(exc),
+                    "error": error_message,
                 }
             )
-            raise AdapterError(
-                f"MCP tool call failed for {canonical_tool_name}: "
-                f"{_safe_error_message(exc)}"
-            ) from exc
+            message = f"MCP tool call failed for {canonical_tool_name}"
+            if connection.config.transport == "stdio":
+                message = f"{message}: {error_message}"
+                raise AdapterError(message) from exc
+            raise AdapterError(message) from None
 
         event = {
             "type": "mcp_tool_result",
@@ -274,48 +290,56 @@ async def async_run_mcp_host_target(
     payload = build_mcp_input(scenario)
     connections: dict[str, _MCPConnection] = {}
 
-    async with AsyncExitStack() as stack:
-        initial_events: list[dict[str, Any]] = []
+    try:
+        async with AsyncExitStack() as stack:
+            initial_events: list[dict[str, Any]] = []
 
-        for server_config in runtime_config.servers:
-            connection, events = await _connect_stdio_server(
-                server_config,
-                sdk,
-                stack,
+            for server_config in runtime_config.servers:
+                connection, events = await _connect_mcp_server(
+                    server_config,
+                    sdk,
+                    stack,
+                )
+                connections[server_config.id] = connection
+                initial_events.extend(events)
+
+            loop = asyncio.get_running_loop()
+            context = MCPHostContext(
+                connections,
+                loop=loop,
+                loop_thread_id=threading.get_ident(),
+                result_content_limit=result_content_limit,
             )
-            connections[server_config.id] = connection
-            initial_events.extend(events)
 
-        loop = asyncio.get_running_loop()
-        context = MCPHostContext(
-            connections,
-            loop=loop,
-            loop_thread_id=threading.get_ident(),
-            result_content_limit=result_content_limit,
-        )
+            for event in initial_events:
+                context._record_event(event)
 
-        for event in initial_events:
-            context._record_event(event)
+            try:
+                target_result = await _invoke_mcp_host_target(
+                    mcp_target,
+                    payload,
+                    context,
+                )
+            except AdapterError:
+                raise
+            except Exception as exc:
+                raise AdapterError(
+                    "MCP host target raised an exception: "
+                    f"{_safe_error_message(exc)}"
+                ) from exc
+            finally:
+                context._close()
 
-        try:
-            target_result = await _invoke_mcp_host_target(
-                mcp_target,
-                payload,
-                context,
+            mcp_servers = tuple(
+                deepcopy(connection.metadata) for connection in connections.values()
             )
-        except AdapterError:
+            mcp_tool_calls = context._snapshot_tool_calls()
+            mcp_events = context._snapshot_events()
+    except BaseExceptionGroup as exc:
+        adapter_error = _single_adapter_error_from_exception_group(exc)
+        if adapter_error is None:
             raise
-        except Exception as exc:
-            raise AdapterError(
-                "MCP host target raised an exception: "
-                f"{_safe_error_message(exc)}"
-            ) from exc
-        finally:
-            context._close()
-
-        mcp_servers = tuple(deepcopy(connection.metadata) for connection in connections.values())
-        mcp_tool_calls = context._snapshot_tool_calls()
-        mcp_events = context._snapshot_events()
+        raise adapter_error from None
 
     mcp_events = (
         *mcp_events,
@@ -343,6 +367,43 @@ async def async_run_mcp_host_target(
     )
 
 
+def _single_adapter_error_from_exception_group(
+    exception_group: BaseExceptionGroup[BaseException],
+) -> AdapterError | None:
+    adapter_errors: list[AdapterError] = []
+    pending: list[BaseException] = list(exception_group.exceptions)
+
+    while pending:
+        exception = pending.pop()
+        if isinstance(exception, BaseExceptionGroup):
+            pending.extend(exception.exceptions)
+        elif not isinstance(exception, Exception):
+            return None
+        elif isinstance(exception, AdapterError):
+            adapter_errors.append(exception)
+
+    if len(adapter_errors) == 1:
+        return adapter_errors[0]
+    return None
+
+
+async def _connect_mcp_server(
+    server_config: MCPServerConfig,
+    sdk: _MCPSDK,
+    stack: AsyncExitStack,
+) -> tuple[_MCPConnection, list[dict[str, Any]]]:
+    if server_config.transport == "stdio":
+        return await _connect_stdio_server(server_config, sdk, stack)
+
+    if server_config.transport == "streamable_http":
+        return await _connect_streamable_http_server(server_config, sdk, stack)
+
+    raise AdapterError(
+        f"MCP server {server_config.id} uses unsupported transport: "
+        f"{server_config.transport}"
+    )
+
+
 async def _connect_stdio_server(
     server_config: MCPServerConfig,
     sdk: _MCPSDK,
@@ -362,16 +423,12 @@ async def _connect_stdio_server(
             stack,
             server_params,
         )
-        session = await _open_client_session(
+        return await _connect_mcp_session(
             server_config,
             sdk,
             stack,
             read_stream,
             write_stream,
-        )
-        initialize_result, tools_result = await _initialize_session(
-            server_config,
-            session,
         )
     except AdapterError:
         raise
@@ -381,6 +438,50 @@ async def _connect_stdio_server(
             f"{server_config.id}: {_safe_error_message(exc)}"
         ) from exc
 
+
+async def _connect_streamable_http_server(
+    server_config: MCPServerConfig,
+    sdk: _MCPSDK,
+    stack: AsyncExitStack,
+) -> tuple[_MCPConnection, list[dict[str, Any]]]:
+    if server_config.transport != "streamable_http":
+        raise AdapterError(
+            f"MCP server {server_config.id} uses unsupported transport: "
+            f"{server_config.transport}"
+        )
+
+    read_stream, write_stream = await _open_streamable_http_transport(
+        server_config,
+        sdk,
+        stack,
+    )
+    return await _connect_mcp_session(
+        server_config,
+        sdk,
+        stack,
+        read_stream,
+        write_stream,
+    )
+
+
+async def _connect_mcp_session(
+    server_config: MCPServerConfig,
+    sdk: _MCPSDK,
+    stack: AsyncExitStack,
+    read_stream: Any,
+    write_stream: Any,
+) -> tuple[_MCPConnection, list[dict[str, Any]]]:
+    session = await _open_client_session(
+        server_config,
+        sdk,
+        stack,
+        read_stream,
+        write_stream,
+    )
+    initialize_result, tools_result = await _initialize_session(
+        server_config,
+        session,
+    )
     metadata = _server_metadata(server_config, initialize_result)
     tool_names = _tool_names_from_list_tools_result(tools_result)
     events = [
@@ -393,7 +494,7 @@ async def _connect_stdio_server(
 
 def _stdio_server_parameters(server_config: MCPServerConfig, sdk: _MCPSDK) -> Any:
     kwargs: dict[str, Any] = {
-        "command": server_config.command,
+        "command": _require_stdio_command(server_config),
         "args": list(server_config.args),
         "env": dict(server_config.env),
     }
@@ -423,6 +524,136 @@ async def _open_stdio_transport(
     )
 
 
+async def _open_streamable_http_transport(
+    server_config: MCPServerConfig,
+    sdk: _MCPSDK,
+    stack: AsyncExitStack,
+) -> tuple[Any, Any]:
+    try:
+        selected_client = _select_streamable_http_client(sdk)
+    except AdapterError:
+        raise AdapterError(
+            "The installed optional MCP SDK does not expose a usable "
+            f"Streamable HTTP client for MCP server {server_config.id}"
+        ) from None
+
+    httpx_module = _load_httpx_for_streamable_http(server_config.id)
+    if selected_client.kind == "modern":
+        transport_context = await _open_modern_streamable_http_context(
+            server_config,
+            selected_client.client,
+            httpx_module,
+            stack,
+        )
+    else:
+        transport_context = _open_legacy_streamable_http_context(
+            server_config,
+            selected_client.client,
+            httpx_module,
+        )
+
+    transport_result = await _wait_for_mcp_startup_step(
+        stack.enter_async_context(transport_context),
+        timeout_seconds=server_config.timeout_seconds,
+        server_id=server_config.id,
+        operation="open Streamable HTTP transport",
+        failure_message=(
+            "Could not open Streamable HTTP transport for MCP server "
+            f"{server_config.id}"
+        ),
+    )
+
+    try:
+        return _normalize_streamable_http_transport_result(transport_result)
+    except AdapterError:
+        raise AdapterError(
+            "Could not open Streamable HTTP transport for MCP server "
+            f"{server_config.id}: unexpected transport result"
+        ) from None
+
+
+async def _open_modern_streamable_http_context(
+    server_config: MCPServerConfig,
+    streamable_http_client: _StreamableHTTPClientCallable,
+    httpx_module: Any,
+    stack: AsyncExitStack,
+) -> Any:
+    try:
+        http_client_context = httpx_module.AsyncClient(
+            headers=dict(server_config.headers),
+            timeout=httpx_module.Timeout(server_config.timeout_seconds),
+            follow_redirects=False,
+        )
+    except Exception:
+        raise AdapterError(
+            "Could not create Streamable HTTP client for MCP server "
+            f"{server_config.id}"
+        ) from None
+
+    http_client = await _wait_for_mcp_startup_step(
+        stack.enter_async_context(http_client_context),
+        timeout_seconds=server_config.timeout_seconds,
+        server_id=server_config.id,
+        operation="open Streamable HTTP client",
+        failure_message=(
+            "Could not open Streamable HTTP client for MCP server "
+            f"{server_config.id}"
+        ),
+    )
+
+    try:
+        return streamable_http_client(
+            _require_streamable_http_url(server_config),
+            http_client=http_client,
+        )
+    except Exception:
+        raise AdapterError(
+            "Could not open Streamable HTTP transport for MCP server "
+            f"{server_config.id}"
+        ) from None
+
+
+def _open_legacy_streamable_http_context(
+    server_config: MCPServerConfig,
+    streamablehttp_client: _StreamableHTTPClientCallable,
+    httpx_module: Any,
+) -> Any:
+    try:
+        return streamablehttp_client(
+            _require_streamable_http_url(server_config),
+            headers=dict(server_config.headers),
+            timeout=server_config.timeout_seconds,
+            sse_read_timeout=server_config.timeout_seconds,
+            httpx_client_factory=_legacy_httpx_client_factory(httpx_module),
+        )
+    except Exception:
+        raise AdapterError(
+            "Could not open Streamable HTTP transport for MCP server "
+            f"{server_config.id}"
+        ) from None
+
+
+def _legacy_httpx_client_factory(
+    httpx_module: Any,
+) -> _HTTPXClientFactory:
+    def create_client(*args: Any, **kwargs: Any) -> Any:
+        client_kwargs = dict(kwargs)
+        client_kwargs["follow_redirects"] = False
+        return httpx_module.AsyncClient(*args, **client_kwargs)
+
+    return create_client
+
+
+def _load_httpx_for_streamable_http(server_id: str) -> Any:
+    try:
+        return importlib.import_module("httpx")
+    except ImportError:
+        raise AdapterError(
+            "HTTPX is unavailable while opening Streamable HTTP transport "
+            f"for MCP server {server_id}"
+        ) from None
+
+
 async def _open_client_session(
     server_config: MCPServerConfig,
     sdk: _MCPSDK,
@@ -430,11 +661,25 @@ async def _open_client_session(
     read_stream: Any,
     write_stream: Any,
 ) -> Any:
+    failure_message = None
+    if server_config.transport == "streamable_http":
+        failure_message = (
+            f"Could not open MCP client session for server {server_config.id}"
+        )
+
+    try:
+        session_context = sdk.ClientSession(read_stream, write_stream)
+    except Exception:
+        if failure_message is not None:
+            raise AdapterError(failure_message) from None
+        raise
+
     return await _wait_for_mcp_startup_step(
-        stack.enter_async_context(sdk.ClientSession(read_stream, write_stream)),
+        stack.enter_async_context(session_context),
         timeout_seconds=server_config.timeout_seconds,
         server_id=server_config.id,
         operation="open client session",
+        failure_message=failure_message,
     )
 
 
@@ -442,18 +687,31 @@ async def _initialize_session(
     server_config: MCPServerConfig,
     session: Any,
 ) -> tuple[Any, Any]:
+    initialize_failure_message = None
+    tools_failure_message = None
+    if server_config.transport == "streamable_http":
+        initialize_failure_message = (
+            f"Could not initialize MCP server {server_config.id}"
+        )
+        tools_failure_message = (
+            f"Could not discover tools for MCP server {server_config.id}"
+        )
+
     initialize_result = await _wait_for_mcp_startup_step(
         session.initialize(),
         timeout_seconds=server_config.timeout_seconds,
         server_id=server_config.id,
         operation="initialize session",
+        failure_message=initialize_failure_message,
     )
     tools_result = await _wait_for_mcp_startup_step(
         session.list_tools(),
         timeout_seconds=server_config.timeout_seconds,
         server_id=server_config.id,
         operation="list tools",
+        failure_message=tools_failure_message,
     )
+
     return initialize_result, tools_result
 
 
@@ -463,13 +721,19 @@ async def _wait_for_mcp_startup_step(
     timeout_seconds: float,
     server_id: str,
     operation: str,
+    failure_message: str | None = None,
 ) -> Any:
     try:
-        return await asyncio.wait_for(awaitable, timeout=timeout_seconds)
+        async with asyncio.timeout(timeout_seconds):
+            return await awaitable
     except TimeoutError as exc:
         raise AdapterError(
             f"Timed out while trying to {operation} for MCP server {server_id}"
         ) from exc
+    except Exception:
+        if failure_message is not None:
+            raise AdapterError(failure_message) from None
+        raise
 
 
 def _callable_accepts_keyword(callable_object: Any, keyword: str) -> bool:
@@ -531,11 +795,85 @@ def _load_mcp_sdk(
     if stdio_server_parameters is None:
         stdio_server_parameters = stdio_module.StdioServerParameters
 
+    streamable_http_client, streamablehttp_client = (
+        _discover_streamable_http_clients(import_module)
+    )
+
     return _MCPSDK(
         ClientSession=client_session,
         StdioServerParameters=stdio_server_parameters,
         stdio_client=stdio_module.stdio_client,
+        streamable_http_client=streamable_http_client,
+        streamablehttp_client=streamablehttp_client,
     )
+
+
+def _discover_streamable_http_clients(
+    import_module: Callable[[str], Any],
+) -> tuple[
+    _StreamableHTTPClientCallable | None,
+    _StreamableHTTPClientCallable | None,
+]:
+    try:
+        streamable_http_module = import_module("mcp.client.streamable_http")
+    except ImportError:
+        return None, None
+
+    return (
+        _optional_sdk_callable(
+            getattr(streamable_http_module, "streamable_http_client", None)
+        ),
+        _optional_sdk_callable(
+            getattr(streamable_http_module, "streamablehttp_client", None)
+        ),
+    )
+
+
+def _optional_sdk_callable(value: Any) -> _StreamableHTTPClientCallable | None:
+    return value if callable(value) else None
+
+
+def _select_streamable_http_client(
+    sdk: _MCPSDK,
+) -> _SelectedStreamableHTTPClient:
+    if sdk.streamable_http_client is not None:
+        return _SelectedStreamableHTTPClient(
+            kind="modern",
+            client=sdk.streamable_http_client,
+        )
+
+    if sdk.streamablehttp_client is not None:
+        return _SelectedStreamableHTTPClient(
+            kind="legacy",
+            client=sdk.streamablehttp_client,
+        )
+
+    raise AdapterError(
+        "Installed MCP SDK does not expose a Streamable HTTP client"
+    )
+
+
+def _normalize_streamable_http_transport_result(
+    result: object,
+) -> tuple[Any, Any]:
+    error_message = (
+        "MCP SDK returned an unexpected Streamable HTTP transport result"
+    )
+
+    if isinstance(result, (str, bytes, bytearray, memoryview, Mapping)):
+        raise AdapterError(error_message)
+
+    indexable_result = cast(_IndexableTransportResult, result)
+    try:
+        read_stream = indexable_result[0]
+        write_stream = indexable_result[1]
+    except Exception:
+        raise AdapterError(error_message) from None
+
+    if read_stream is None or write_stream is None:
+        raise AdapterError(error_message)
+
+    return read_stream, write_stream
 
 
 def _validate_required_servers(
@@ -603,8 +941,8 @@ def _server_metadata(
     metadata = {
         "id": server_config.id,
         "transport": server_config.transport,
-        "command": _command_basename(server_config.command),
     }
+    metadata.update(_transport_metadata(server_config))
     metadata.update(_initialize_result_metadata(initialize_result))
     return metadata
 
@@ -618,20 +956,52 @@ def _connection_initialized_event(
         "id": server_config.id,
         "server_id": server_config.id,
         "transport": server_config.transport,
-        "command": _command_basename(server_config.command),
     }
+    event.update(_transport_metadata(server_config))
     event.update(_initialize_result_metadata(initialize_result))
     return event
 
 
 def _connection_closed_event(connection: _MCPConnection) -> dict[str, Any]:
-    return {
+    event = {
         "type": "mcp_connection_closed",
         "id": connection.config.id,
         "server_id": connection.config.id,
         "transport": connection.config.transport,
-        "command": _command_basename(connection.config.command),
     }
+    event.update(_transport_metadata(connection.config))
+    return event
+
+
+def _transport_metadata(server_config: MCPServerConfig) -> dict[str, Any]:
+    if server_config.transport == "stdio":
+        return {
+            "command": _command_basename(_require_stdio_command(server_config)),
+        }
+
+    if server_config.transport == "streamable_http":
+        return {}
+
+    raise AdapterError(
+        f"MCP server {server_config.id} uses unsupported transport: "
+        f"{server_config.transport}"
+    )
+
+
+def _require_stdio_command(server_config: MCPServerConfig) -> str:
+    if server_config.command is None:
+        raise AdapterError(
+            f"MCP stdio server {server_config.id} command is not configured"
+        )
+    return server_config.command
+
+
+def _require_streamable_http_url(server_config: MCPServerConfig) -> str:
+    if server_config.url is None:
+        raise AdapterError(
+            f"MCP Streamable HTTP server {server_config.id} URL is not configured"
+        )
+    return server_config.url
 
 
 def _command_basename(command: str) -> str:
@@ -1011,6 +1381,15 @@ def _truncate_jsonable(value: Any, *, limit: int) -> tuple[Any, bool]:
 def _safe_error_message(exc: Exception) -> str:
     message = str(exc) or exc.__class__.__name__
     return _truncate_string(message, MAX_ERROR_MESSAGE_LENGTH)
+
+
+def _mcp_tool_error_message(
+    server_config: MCPServerConfig,
+    exc: Exception,
+) -> str:
+    if server_config.transport == "streamable_http":
+        return "MCP Streamable HTTP tool call failed"
+    return _safe_error_message(exc)
 
 
 def _truncate_string(value: str, limit: int) -> str:
