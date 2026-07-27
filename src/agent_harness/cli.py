@@ -212,6 +212,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional max_turns value passed to the OpenAI Agents SDK runner.",
     )
     run_parser.add_argument(
+        "--openai-agent-goal-event",
+        help="Optional goal event id recorded in the OpenAI Agents SDK trace.",
+    )
+    run_parser.add_argument(
         "--exit-on-fail",
         action="store_true",
         help=(
@@ -305,6 +309,15 @@ def main() -> int:
         if args.openai_agent_max_turns is not None and args.openai_agent is None:
             parser.error("--openai-agent-max-turns can only be used with --openai-agent")
 
+        if args.openai_agent_goal_event is not None and args.openai_agent is None:
+            parser.error("--openai-agent-goal-event can only be used with --openai-agent")
+
+        if (
+            args.openai_agent_goal_event is not None
+            and not args.openai_agent_goal_event.strip()
+        ):
+            parser.error("--openai-agent-goal-event must be a non-empty string")
+
         if args.langchain_goal_event is not None and args.langchain_target is None:
             parser.error("--langchain-goal-event can only be used with --langchain-target")
 
@@ -363,6 +376,7 @@ def main() -> int:
                     scenario,
                     args.openai_agent,
                     max_turns=args.openai_agent_max_turns,
+                    goal_event_id=args.openai_agent_goal_event,
                 )
             except AdapterError as exc:
                 print(f"adapter error: {exc}", file=sys.stderr)

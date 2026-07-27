@@ -648,6 +648,8 @@ AGENT = FakeAgent()
             "cli_openai_agent:AGENT",
             "--openai-agent-max-turns",
             "5",
+            "--openai-agent-goal-event",
+            "summarize_document",
         ],
     )
 
@@ -672,6 +674,10 @@ AGENT = FakeAgent()
         {
             "type": "scenario",
             "id": "goal_hijack.basic_001",
+        },
+        {
+            "type": "goal",
+            "id": "summarize_document",
         },
     ]
 
@@ -1565,6 +1571,68 @@ def test_target_timeout_must_be_positive(capsys, monkeypatch, tmp_path):
         main()
 
     assert "--target-timeout must be greater than zero" in capsys.readouterr().err
+
+
+def test_openai_agent_goal_event_requires_openai_agent(
+    capsys,
+    monkeypatch,
+    tmp_path,
+):
+    scenario_file = tmp_path / "scenario.yaml"
+    scenario_file.write_text(VALID_SCENARIO, encoding="utf-8")
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agent-harness",
+            "run",
+            str(scenario_file),
+            "--trace-file",
+            "trace.json",
+            "--openai-agent-goal-event",
+            "summarize_document",
+        ],
+    )
+
+    with pytest.raises(SystemExit):
+        main()
+
+    assert (
+        "--openai-agent-goal-event can only be used with --openai-agent"
+        in capsys.readouterr().err
+    )
+
+
+def test_openai_agent_goal_event_must_be_non_empty(
+    capsys,
+    monkeypatch,
+    tmp_path,
+):
+    scenario_file = tmp_path / "scenario.yaml"
+    scenario_file.write_text(VALID_SCENARIO, encoding="utf-8")
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agent-harness",
+            "run",
+            str(scenario_file),
+            "--openai-agent",
+            "module:agent",
+            "--openai-agent-goal-event",
+            " ",
+        ],
+    )
+
+    with pytest.raises(SystemExit):
+        main()
+
+    assert (
+        "--openai-agent-goal-event must be a non-empty string"
+        in capsys.readouterr().err
+    )
 
 
 def test_target_header_requires_live(capsys, monkeypatch, tmp_path):
