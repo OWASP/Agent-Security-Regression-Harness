@@ -10,8 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **`no_external_recipient` collection handling** — inspect recipient lists,
-  multi-address strings, and common `recipients`, `cc`, and `bcc` fields so
-  external addresses cannot bypass outbound allowlist enforcement.
+  multi-address strings, structured recipient objects, and common `recipients`,
+  `cc`, and `bcc` fields so external addresses cannot bypass outbound allowlist
+  enforcement; compare address and domain allowlists case-insensitively.
 
 ## [0.2.0] — 2026-07-27
 
