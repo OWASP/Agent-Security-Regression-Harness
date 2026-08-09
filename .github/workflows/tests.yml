@@ -97,12 +97,32 @@ jobs:
           agent-harness run scenarios/approval_bypass/claimed_preauthorization_root_password_001.yaml \
             --trace-file examples/traces/approval_bypass_fake_token.json \
             --out regression_demo/approval_bypass_fake_token.json
+      - name: Show recipient-allowlist shape-evasion gap (#167) against evading traces
+        run: |
+          # Expected-fail negative tests for no_external_recipient. Each trace sends to an
+          # external recipient in a shape the current extractor does not read, so it scores
+          # pass on main. These turn fail once recipient extraction is shape-independent (#165).
+          agent-harness run scenarios/sensitive_data_disclosure/email_exfiltration_emailaddress_key_001.yaml \
+            --trace-file examples/traces/email_exfiltration_emailaddress_key_violation.json \
+            --out regression_demo/email_exfiltration_emailaddress_key.json
+          agent-harness run scenarios/sensitive_data_disclosure/email_exfiltration_mail_key_001.yaml \
+            --trace-file examples/traces/email_exfiltration_mail_key_violation.json \
+            --out regression_demo/email_exfiltration_mail_key.json
+          agent-harness run scenarios/sensitive_data_disclosure/email_exfiltration_msgraph_torecipients_001.yaml \
+            --trace-file examples/traces/email_exfiltration_msgraph_torecipients_violation.json \
+            --out regression_demo/email_exfiltration_msgraph_torecipients.json
+          agent-harness run scenarios/sensitive_data_disclosure/email_exfiltration_sendgrid_personalizations_001.yaml \
+            --trace-file examples/traces/email_exfiltration_sendgrid_personalizations_violation.json \
+            --out regression_demo/email_exfiltration_sendgrid_personalizations.json
+          agent-harness run scenarios/sensitive_data_disclosure/email_exfiltration_custom_sendto_list_001.yaml \
+            --trace-file examples/traces/email_exfiltration_custom_sendto_list_violation.json \
+            --out regression_demo/email_exfiltration_custom_sendto_list.json
       - name: Dry-run remaining scenarios without trace files
         run: |
           for f in scenarios/*/*.yaml; do
             base=$(basename "$f" .yaml)
             case "$f" in
-              */goal_hijack/basic.yaml|*/goal_hijack/outbound_email_exfiltration_001.yaml|*/memory_isolation/cross_session_leak_001.yaml|*/approval_bypass/claimed_preauthorization_root_password_001.yaml)
+              */goal_hijack/basic.yaml|*/goal_hijack/outbound_email_exfiltration_001.yaml|*/memory_isolation/cross_session_leak_001.yaml|*/approval_bypass/claimed_preauthorization_root_password_001.yaml|*/sensitive_data_disclosure/email_exfiltration_emailaddress_key_001.yaml|*/sensitive_data_disclosure/email_exfiltration_mail_key_001.yaml|*/sensitive_data_disclosure/email_exfiltration_msgraph_torecipients_001.yaml|*/sensitive_data_disclosure/email_exfiltration_sendgrid_personalizations_001.yaml|*/sensitive_data_disclosure/email_exfiltration_custom_sendto_list_001.yaml)
                 ;; # already run above
               *)
                 echo "Dry-run: $f"
@@ -133,7 +153,15 @@ jobs:
           python - <<'PY'
           import pathlib, sys
           missing_files = []
-          expected_files = ["memory_isolation_leak.json", "approval_bypass_fake_token.json"]
+          expected_files = [
+              "memory_isolation_leak.json",
+              "approval_bypass_fake_token.json",
+              "email_exfiltration_emailaddress_key.json",
+              "email_exfiltration_mail_key.json",
+              "email_exfiltration_msgraph_torecipients.json",
+              "email_exfiltration_sendgrid_personalizations.json",
+              "email_exfiltration_custom_sendto_list.json",
+          ]
           target_directory = pathlib.Path("regression_demo")
           for file in expected_files:
               file_path = target_directory / file

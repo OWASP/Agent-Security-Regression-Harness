@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Recipient-allowlist shape-evasion scenarios (`no_external_recipient`)** — five
+  expected-fail negative scenarios under `scenarios/sensitive_data_disclosure/`
+  that send to an external recipient in a shape the current recipient extractor
+  does not read: a recipient under the `emailAddress` key, under the `mail` key,
+  a Microsoft Graph `toRecipients` envelope, a SendGrid `personalizations`
+  envelope, and a custom `send_to` list of recipient objects. Each has a passing
+  fixture (agent refuses) and an evading violation trace wired into the
+  `regression_demo/` gate. The violation traces score `pass` on `main` today and
+  turn `fail` once recipient extraction is made shape-independent. Documents the
+  gap analyzed in #167; complements the fix in #165.
+
 ## [0.2.0] — 2026-07-27
 
 Hardening and CI ergonomics. This release makes the harness comfortable to run
