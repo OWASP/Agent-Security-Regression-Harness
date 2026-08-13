@@ -47,7 +47,16 @@ def validator(schema: dict[str, Any]) -> jsonschema.Draft202012Validator:
 
 
 def _bundled_scenario_paths() -> list[Path]:
-    return sorted(SCENARIOS_DIR.glob("*/*.yaml"))
+    # The loader accepts .yaml and .yml at any depth (scenario.py suffix check).
+    # Discovery must match that contract: a scenario the harness would accept and
+    # this list would miss is a scenario no parity test ever sees.
+    paths = sorted(
+        p for p in SCENARIOS_DIR.rglob("*") if p.suffix.lower() in {".yaml", ".yml"}
+    )
+    # parametrize over an empty list yields zero cases and a green suite, so an
+    # empty discovery must fail loudly rather than silently cover nothing.
+    assert paths, f"no bundled scenarios discovered under {SCENARIOS_DIR}"
+    return paths
 
 
 def _valid_scenario() -> dict[str, Any]:
