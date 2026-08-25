@@ -18,6 +18,7 @@ from pathlib import Path
 
 import pytest
 
+from agent_harness.cli import _discover_scenario_files
 from agent_harness.runner import run_scenario_with_trace
 from agent_harness.scenario import load_scenario
 from agent_harness.trace import load_trace
@@ -29,7 +30,7 @@ TRACES_DIR = REPO_ROOT / "examples" / "traces"
 
 def _scenario_fixture_pairs() -> list[tuple[Path, Path]]:
     pairs: list[tuple[Path, Path]] = []
-    for scenario_path in sorted(SCENARIOS_DIR.glob("*/*.yaml")):
+    for scenario_path in _discover_scenario_files([str(SCENARIOS_DIR)]):
         category = scenario_path.parent.name
         basename = scenario_path.stem
         fixture_path = TRACES_DIR / category / f"{basename}_pass.json"

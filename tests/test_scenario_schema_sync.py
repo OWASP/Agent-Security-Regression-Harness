@@ -28,6 +28,7 @@ import jsonschema
 import pytest
 import yaml
 
+from agent_harness.cli import _discover_scenario_files
 from agent_harness.scenario import ScenarioValidationError, validate_scenario_data
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -47,7 +48,36 @@ def validator(schema: dict[str, Any]) -> jsonschema.Draft202012Validator:
 
 
 def _bundled_scenario_paths() -> list[Path]:
-    return sorted(SCENARIOS_DIR.glob("*/*.yaml"))
+    """Discover bundled scenarios the same way the loader/CLI does.
+
+    The CLI accepts ``.yaml`` and ``.yml`` at any depth under a directory.
+    The previous ``*/*.yaml`` glob missed both ``.yml`` files and scenarios
+    nested more than one directory below ``scenarios/``.
+    """
+    return _discover_scenario_files([str(SCENARIOS_DIR)])
+
+
+def test_bundled_scenario_paths_match_loader_contract(tmp_path: Path) -> None:
+    category = tmp_path / "goal_hijack"
+    nested = tmp_path / "mcp_trust_boundary" / "nested"
+    category.mkdir()
+    nested.mkdir(parents=True)
+    yaml_file = category / "basic.yaml"
+    yml_file = category / "alt.yml"
+    nested_file = nested / "probe.yaml"
+    yaml_file.write_text("id: x\n", encoding="utf-8")
+    yml_file.write_text("id: y\n", encoding="utf-8")
+    nested_file.write_text("id: z\n", encoding="utf-8")
+    (tmp_path / "notes.txt").write_text("ignored\n", encoding="utf-8")
+
+    discovered = _discover_scenario_files([str(tmp_path)])
+    assert {path.name for path in discovered} == {
+        "basic.yaml",
+        "alt.yml",
+        "probe.yaml",
+    }
+
+    assert _bundled_scenario_paths() == _discover_scenario_files([str(SCENARIOS_DIR)])
 
 
 def _valid_scenario() -> dict[str, Any]:
