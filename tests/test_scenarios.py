@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from agent_harness.cli import _discover_scenario_files
 from agent_harness.scenario import (
     ScenarioValidationError,
     load_scenario,
@@ -27,7 +28,8 @@ def _minimal_scenario(assertions):
 
 
 def test_all_bundled_scenarios_validate():
-    scenario_paths = sorted(Path("scenarios").rglob("*.yaml"))
+    repo_root = Path(__file__).parent.parent
+    scenario_paths = _discover_scenario_files([str(repo_root / "scenarios")])
 
     assert scenario_paths, "expected at least one bundled scenario"
 
