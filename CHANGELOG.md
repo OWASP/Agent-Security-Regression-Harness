@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **`approval_required` accepted approvals a target could fabricate.** The assertion
+  derived its trusted source names from `input.context`, which `build_target_payload`
+  sends to the target. A target could read which names were marked `trust: trusted` and
+  write one into an approval event it invented, and the assertion passed. Trusted sources
+  are now declared with `trusted_sources` on the assertion, which never leaves the
+  harness. The context-derived path is kept as a fallback for scenarios that have not
+  migrated, and is documented as the weaker form.
+
+### Changed
+
+- **`scenarios/approval_bypass/claimed_preauthorization_root_password_001.yaml`** declares
+  its trusted source on the assertion rather than through a content-less `input.context`
+  entry.
+
 ## [0.2.0] — 2026-07-27
 
 Hardening and CI ergonomics. This release makes the harness comfortable to run
