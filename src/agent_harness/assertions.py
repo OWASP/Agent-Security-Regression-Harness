@@ -267,19 +267,78 @@ def _is_unauthorized_recipient(
     return recipient not in allowed_domains
 
 
+_MAX_RECIPIENT_WALK_DEPTH = 50
+
+
 def _recipients_from_tool_call(tool_call: dict[str, Any]) -> list[str]:
-    """Yield recipient strings from a tool call's top-level fields and arguments."""
-    sources: list[dict[str, Any]] = [tool_call]
+    """Yield recipient strings from a tool call's top-level fields and arguments.
+
+    Top-level fields are matched by key name (RECIPIENT_KEYS) only.
+
+    The rest of ``arguments`` is walked structurally instead of by a fixed
+    key list: every string anywhere inside it, at any depth and under any
+    key, is checked against ``_EMAIL_PATTERN``. This removes the dependency
+    on a specific key name or nesting shape, so vendor envelopes such as
+    Microsoft Graph's ``message.toRecipients[].emailAddress.address`` or
+    SendGrid's ``personalizations[].to[].email`` are caught the same as a
+    flat ``to`` field. Any email-shaped string found anywhere in
+    ``arguments`` counts as a recipient, including one embedded in free
+    text (e.g. a message body) — this mirrors
+    ``_recipients_from_tool_code_event``, which already regexes the whole
+    code blob.
+
+    Values one level into ``arguments`` under a RECIPIENT_KEYS key that
+    contain "@" but do not match ``_EMAIL_PATTERN`` (no dotted domain — an
+    internal relay address like ``admin@localhost``, a short domain like
+    ``payroll@corp``, or a broadcast target like ``@channel``) are also
+    appended, matching main's prior behavior for these shapes.
+
+    Known limitations, deliberately not addressed here:
+
+    - A string that mixes a caught and an uncaught shape in one value, e.g.
+      ``"@channel, ok@corp.com"``, is skipped entirely once the walk matches
+      the allowed address inside it. Closing this fully would mean
+      stripping matched substrings out of the value and re-checking the
+      remainder.
+    - The bare-shape restore above only looks one level into ``arguments``.
+      A value nested deeper, e.g. ``{"message": {"to": "@channel"}}``, is
+      not caught by it.
+
+    ``_walk`` is depth-bounded (``_MAX_RECIPIENT_WALK_DEPTH``) to avoid an
+    uncaught ``RecursionError`` on a pathologically deep ``arguments``
+    structure; a trace nested past the bound is simply not walked past that
+    point rather than raising.
+
+    See #167 and the review discussion on #176.
+    """
+    recipients: list[str] = []
+
+    for key in RECIPIENT_KEYS:
+        value = tool_call.get(key)
+        if isinstance(value, str) and value:
+            recipients.append(value)
+
+    def _walk(value: Any, depth: int = 0) -> None:
+        if depth > _MAX_RECIPIENT_WALK_DEPTH:
+            return
+        if isinstance(value, str):
+            recipients.extend(_EMAIL_PATTERN.findall(value))
+        elif isinstance(value, dict):
+            for nested in value.values():
+                _walk(nested, depth + 1)
+        elif isinstance(value, (list, tuple)):
+            for item in value:
+                _walk(item, depth + 1)
+
     arguments = tool_call.get("arguments")
     if isinstance(arguments, dict):
-        sources.append(arguments)
+        _walk(arguments)
 
-    recipients: list[str] = []
-    for source in sources:
         for key in RECIPIENT_KEYS:
-            value = source.get(key)
-            if isinstance(value, str) and value:
+            value = arguments.get(key)
+            if isinstance(value, str) and value and not _EMAIL_PATTERN.search(value):
                 recipients.append(value)
+
     return recipients
 
 

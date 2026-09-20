@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `no_external_recipient` now detects recipients under non-standard or nested
+  keys (e.g. vendor envelopes like MS Graph's `message.toRecipients[].emailAddress.address`
+  or SendGrid's `personalizations[].to[].email`), instead of relying on a
+  fixed key list (#167)
+- `no_external_recipient` no longer raises `RecursionError` on a
+  pathologically deep `arguments` structure; the walk now stops at a
+  bounded depth (#176)
+
+### Changed
+
+- `no_external_recipient` now flags an unauthorized recipient embedded in
+  free text (e.g. a message body) inside `arguments`, matching the existing
+  behavior of the `tool_code` path, which already scans the whole code blob
+  for addresses (#176)
+
 ## [0.2.0] — 2026-07-27
 
 Hardening and CI ergonomics. This release makes the harness comfortable to run
