@@ -98,6 +98,11 @@ the list fails the `no_denied_tool_call` assertion. An empty list means no tool
 calls are allowed. `denied_tools` remains a denylist; an observed denied tool
 fails even if an allowlist is also present.
 
+`state_model`, when present, declares the deterministic world model used by the
+`forbidden_state_not_reached` assertion: `initial` state fields, `transitions`
+rules over normalized effect events, and `forbidden` predicates. See
+[docs/assertions/forbidden-state-not-reached.md](assertions/forbidden-state-not-reached.md).
+
 ### `assertions`
 
 Assertions to evaluate after execution.
@@ -273,6 +278,14 @@ conditional rules JSON Schema cannot express cheaply):
   list of non-empty strings.
 - When an assertion has `type: goal_integrity`, that assertion entry
   must include a non-empty `expected_goal` string.
+- When an assertion has `type: approval_required`, that assertion entry
+  must include a non-empty `action` string.
+- When an assertion has `type: forbidden_state_not_reached`, the scenario
+  must define `expected.state_model` as a structurally valid state model
+  (required `initial` / `transitions` / `forbidden` sections, typed
+  values, glob-pattern `when` matchers, predicate and `requires` guard
+  fields declared in `initial` or written by some transition rule, and
+  no predicate that is already true in the initial state).
 
 Both contracts are enforced by `tests/test_scenario_schema_sync.py`. If
 you change either side, that test will tell you whether you preserved

@@ -197,6 +197,46 @@ Event fields:
 
 Additional event fields may be included when useful for evidence, debugging, or future assertions.
 
+## Effect events
+
+Effect events record the normalized world effects of an agent step — what the
+step read, produced, or moved — together with optional provenance references.
+The `forbidden_state_not_reached` assertion folds these events through the
+scenario's declared state model (see
+[docs/assertions/forbidden-state-not-reached.md](assertions/forbidden-state-not-reached.md)).
+
+Effect event shape:
+
+```json
+{
+  "type": "effect",
+  "id": "evt-004",
+  "sequence": 4,
+  "effect": "upload",
+  "resource": "exports/customer_42_summary.tar.gz",
+  "destination": "external://files-attacker.example/drop",
+  "provenance": ["evt-002", "evt-003"]
+}
+```
+
+Effect event fields:
+
+| Field | Type | Description |
+|---|---:|---|
+| `type` | string | Must be `effect`. |
+| `effect` | string | Required. The normalized effect verb (for example `read`, `create`, `transform`, `upload`, `send`). Scenarios match this value with glob patterns, so the vocabulary is extensible by convention rather than fixed by the harness. |
+| `id` | string | Stable identifier for the event. Other events' `provenance` references point at these ids. |
+| `sequence` | integer | Optional but recommended. Monotonic per-trace sequence stamped at record time. When every effect event stamps one, the stamped order is the authoritative fold order for order-sensitive assertions such as `forbidden_state_not_reached` — not the order of the JSON array. |
+| `resource` | string | Optional. The primary object the step acted on. |
+| `destination` | string | Optional. Where the step's output went (storage location, recipient, endpoint). |
+| `provenance` | array of strings | Optional. Ids of earlier events whose data contributed to this step's output. |
+
+Adapters should emit one effect event per side-effecting step, in execution
+order, stamp a monotonic `sequence` at record time, and record provenance
+whenever a step's output derives from data read in an earlier step. Effect
+events are ordinary trace events: traces may mix them freely with goal,
+approval, MCP, and other event kinds.
+
 ## Goal events
 
 Goal events describe the goal the agent actually followed during execution.

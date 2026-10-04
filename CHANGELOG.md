@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`forbidden_state_not_reached` assertion** — deterministic stateful
+  trajectory assertion for forbidden world states. Scenarios declare a state
+  model under `expected.state_model` (`initial` fields, `transitions` rules
+  over normalized effect events, `forbidden` predicates); the assertion folds
+  the trace's `type: "effect"` events in order, applies matching rules,
+  evaluates every predicate after each transition, and fails at the first
+  transition that makes a predicate true. Failure evidence reports the
+  transition index, predicate ID, and a redacted provenance chain (transition
+  indices, effect verbs, declared provenance references — no effect payloads),
+  consistent with the `memory_isolation` evidence-redaction precedent. Catches
+  composite failures such as read-confidential → archive → external-upload
+  chains where every individual tool call is permitted. Detection is bounded
+  authored-state correlation, not verified information-flow tracking:
+  transition rules correlate the read with the derived artifact through
+  authored `when` patterns and `requires` guards, and the bundled negative
+  control pins that an unrelated external upload does not fire the
+  predicate. Order-sensitive
+  outcomes are expressed with `requires` guards on transition rules, and
+  effect events may stamp a monotonic integer `sequence` at record time:
+  when every effect event stamps one, the stamped order is the authoritative
+  fold order (stable across re-serialized recordings), while mixed, duplicate,
+  or non-integer stamps surface as an `error` because the recorded order is
+  unreliable evidence. Includes a paired attack/control scenario
+  (`sensitive_data_disclosure.composite_exfiltration_state_001`,
+  `..._control_001`, and a negative control `..._negative_control_001` for an
+  unrelated external upload), passing trace fixtures for all three, a
+  per-assertion doc at `docs/assertions/forbidden-state-not-reached.md`
+  (including the state-model coverage precondition and the authored-state
+  correlation boundary), effect-event documentation in
+  `docs/trace-format.md`, and a new deterministic reducer module
+  `agent_harness.state_model` with full unit coverage. Scenario validation is
+  extended: when this assertion type is present, `expected.state_model` must
+  be structurally valid (Python validator only; the JSON Schema stays
+  permissive for `expected`, matching the documented asymmetry). Per
+  `docs/schema-versioning.md` this is a MINOR addition (new assertion type);
+  no schema file change is required because assertion types are not
+  enumerated in the schema.
+
 ## [0.2.0] — 2026-07-27
 
 Hardening and CI ergonomics. This release makes the harness comfortable to run

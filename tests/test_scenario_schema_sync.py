@@ -204,6 +204,61 @@ _PYTHON_ONLY_REJECT_CASES = [
         ),
         id="non-string-denied_tools-entry",
     ),
+    pytest.param(
+        _mutate(
+            _valid_scenario(),
+            assertions=[{"type": "forbidden_state_not_reached"}],
+        ),
+        id="forbidden_state_not_reached-missing-state_model",
+    ),
+    pytest.param(
+        _mutate(
+            _valid_scenario(),
+            expected={"state_model": {"initial": {}, "transitions": [], "forbidden": []}},
+            assertions=[{"type": "forbidden_state_not_reached"}],
+        ),
+        id="forbidden_state_not_reached-empty-transitions-and-forbidden",
+    ),
+    pytest.param(
+        _mutate(
+            _valid_scenario(),
+            expected={
+                "state_model": {
+                    "initial": {"loaded": False},
+                    "transitions": [
+                        {"when": {"effect": "read"}, "set": {"loaded": True}}
+                    ],
+                    "forbidden": [
+                        {"id": "p", "all": [{"field": "undeclared_field", "equals": True}]}
+                    ],
+                }
+            },
+            assertions=[{"type": "forbidden_state_not_reached"}],
+        ),
+        id="forbidden_state_not_reached-undeclared-predicate-field",
+    ),
+    pytest.param(
+        _mutate(
+            _valid_scenario(),
+            expected={
+                "state_model": {
+                    "initial": {"loaded": False},
+                    "transitions": [
+                        {
+                            "when": {"effect": "upload"},
+                            "requires": [{"field": "undeclared_field", "equals": True}],
+                            "add": {"count": 1},
+                        }
+                    ],
+                    "forbidden": [
+                        {"id": "p", "all": [{"field": "count", "greater_than": 0}]}
+                    ],
+                }
+            },
+            assertions=[{"type": "forbidden_state_not_reached"}],
+        ),
+        id="forbidden_state_not_reached-undeclared-guard-field",
+    ),
 ]
 
 

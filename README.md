@@ -51,6 +51,7 @@ Currently implemented assertions:
 - `goal_integrity` — fail if the agent drifts from the expected goal event
 - `memory_isolation` — fail if any configured `forbidden_markers` appear anywhere in the trace (with redacted failure evidence)
 - `no_external_recipient` — fail on outbound actions to recipients or domains outside the allowlist
+- `forbidden_state_not_reached` — fold the trace's normalized effect events through a scenario-declared deterministic state model and fail when a declared forbidden world state becomes true; catches composite failures where every individual tool call is permitted (with redacted provenance evidence)
 
 To test whether specific known secrets leak (API keys, tokens, PII you control), configure them as `forbidden_markers` under `expected.memory_isolation` — `memory_isolation` enforces this and reports leaks without re-exposing the marker value. See [docs/assertions/memory-isolation.md](docs/assertions/memory-isolation.md).
 

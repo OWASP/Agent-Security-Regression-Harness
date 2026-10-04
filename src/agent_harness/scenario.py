@@ -9,6 +9,8 @@ from typing import Any
 
 import yaml
 
+from agent_harness.state_model import validate_state_model
+
 # Scenario IDs are used as filesystem path components (e.g. the suite runner
 # maps a scenario to ``<trace-dir>/<id>.json`` and writes ``<out-dir>/<id>.json``).
 # Constrain them to a filename-safe charset so an ID can never traverse paths.
@@ -175,6 +177,17 @@ def validate_scenario_data(data: Any) -> Scenario:
                 raise ScenarioValidationError(
                     f"assertions[{index}].action must be a non-empty string "
                     "for approval_required assertions"
+                )
+
+        if assertion_type == "forbidden_state_not_reached":
+            state_model_errors = validate_state_model(
+                data.get("expected", {}).get("state_model")
+            )
+            if state_model_errors:
+                joined = "; ".join(state_model_errors)
+                raise ScenarioValidationError(
+                    f"invalid expected.state_model for forbidden_state_not_reached "
+                    f"assertions[{index}]: {joined}"
                 )
 
     return Scenario(
