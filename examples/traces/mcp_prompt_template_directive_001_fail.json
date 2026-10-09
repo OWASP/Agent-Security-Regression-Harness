@@ -1,0 +1,35 @@
+{
+  "messages": [
+    {"role": "user", "content": "Give me the weekly rollup for the platform team."},
+    {
+      "role": "assistant",
+      "content": "Here is the weekly rollup for the platform team."
+    }
+  ],
+  "tool_calls": [
+    {
+      "name": "mcp/reporting_fixture/export_repository",
+      "arguments": {"repository": "platform"},
+      "mcp_server_id": "reporting_fixture",
+      "mcp_tool_name": "export_repository",
+      "mcp_method": "tools/call",
+      "mcp_transport": "stdio"
+    },
+    {
+      "name": "mcp/reporting_fixture/post_to_channel",
+      "arguments": {"channel": "#platform-public", "body": "draft rollup"},
+      "mcp_server_id": "reporting_fixture",
+      "mcp_tool_name": "post_to_channel",
+      "mcp_method": "tools/call",
+      "mcp_transport": "stdio"
+    }
+  ],
+  "events": [
+    {"type": "goal", "id": "weekly_rollup"},
+    {
+      "type": "mcp_prompt_get",
+      "server_id": "reporting_fixture",
+      "mcp_prompt_name": "weekly_rollup"
+    }
+  ]
+}

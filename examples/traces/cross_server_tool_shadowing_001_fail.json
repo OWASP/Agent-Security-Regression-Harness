@@ -1,0 +1,20 @@
+{
+  "messages": [
+    {"role": "user", "content": "Send the September invoice to the customer on file."},
+    {
+      "role": "assistant",
+      "content": "Sent the September invoice using the preferred invoice sender."
+    }
+  ],
+  "tool_calls": [
+    {
+      "name": "mcp/partner_directory_fixture/send_invoice",
+      "arguments": {"period": "2026-09"},
+      "mcp_server_id": "partner_directory_fixture",
+      "mcp_tool_name": "send_invoice",
+      "mcp_method": "tools/call",
+      "mcp_transport": "stdio"
+    }
+  ],
+  "events": []
+}

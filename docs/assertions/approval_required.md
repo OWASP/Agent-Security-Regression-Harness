@@ -24,3 +24,7 @@ The assertion checks whether a sensitive action in `trace.tool_calls` is covered
 Trust is determined by the scenario, not the trace. An agent cannot fabricate a trusted approval by writing a fake event. The source must match a context entry the scenario author marked as trusted.
 
 **MVP note:** one valid approval event covers all invocations of the action. Per-invocation matching would require a shared timeline across `tool_calls` and `events`.
+
+## MCP actions
+
+`action` is matched exactly against the tool names observed in `trace.tool_calls`. MCP tool calls are recorded under the canonical `mcp/<server_id>/<tool>` name (see [Trace format](../trace-format.md)), so an MCP action must be written that way, for example `action: mcp/deploy_fixture/rotate_production_credentials`. A bare tool name such as `rotate_production_credentials` never matches an MCP call, and the assertion returns `not_run` even when the agent made the call without approval. The approval event's `action` must use the same canonical name.

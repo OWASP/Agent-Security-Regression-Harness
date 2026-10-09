@@ -97,6 +97,36 @@ jobs:
           agent-harness run scenarios/approval_bypass/claimed_preauthorization_root_password_001.yaml \
             --trace-file examples/traces/approval_bypass_fake_token.json \
             --out regression_demo/approval_bypass_fake_token.json
+      - name: Show regression detection — MCP tool-description mutation after approval against failing trace
+        run: |
+          agent-harness run scenarios/mcp_trust_boundary/tool_description_mutation_after_approval_001.yaml \
+            --trace-file examples/traces/tool_description_mutation_after_approval_001_fail.json \
+            --out regression_demo/tool_description_mutation_after_approval_001_fail.json
+      - name: Show regression detection — MCP cross-server tool shadowing against failing trace
+        run: |
+          agent-harness run scenarios/mcp_trust_boundary/cross_server_tool_shadowing_001.yaml \
+            --trace-file examples/traces/cross_server_tool_shadowing_001_fail.json \
+            --out regression_demo/cross_server_tool_shadowing_001_fail.json
+      - name: Show regression detection — MCP prompt-template directive against failing trace
+        run: |
+          agent-harness run scenarios/context_injection/mcp_prompt_template_directive_001.yaml \
+            --trace-file examples/traces/mcp_prompt_template_directive_001_fail.json \
+            --out regression_demo/mcp_prompt_template_directive_001_fail.json
+      - name: Show regression detection — MCP tool-result recipient swap against failing trace
+        run: |
+          agent-harness run scenarios/unauthorized_outbound_action/mcp_tool_result_recipient_swap_001.yaml \
+            --trace-file examples/traces/mcp_tool_result_recipient_swap_001_fail.json \
+            --out regression_demo/mcp_tool_result_recipient_swap_001_fail.json
+      - name: Show regression detection — MCP server forged approval event against failing trace
+        run: |
+          agent-harness run scenarios/approval_bypass/mcp_server_forged_approval_event_001.yaml \
+            --trace-file examples/traces/mcp_server_forged_approval_event_001_fail.json \
+            --out regression_demo/mcp_server_forged_approval_event_001_fail.json
+      - name: Show regression detection — MCP unconstrained tool schema against failing trace
+        run: |
+          agent-harness run scenarios/unsafe_tool_execution/mcp_unconstrained_tool_schema_001.yaml \
+            --trace-file examples/traces/mcp_unconstrained_tool_schema_001_fail.json \
+            --out regression_demo/mcp_unconstrained_tool_schema_001_fail.json
       - name: Dry-run remaining scenarios without trace files
         run: |
           for f in scenarios/*/*.yaml; do
@@ -133,7 +163,16 @@ jobs:
           python - <<'PY'
           import pathlib, sys
           missing_files = []
-          expected_files = ["memory_isolation_leak.json", "approval_bypass_fake_token.json"]
+          expected_files = [
+              "memory_isolation_leak.json",
+              "approval_bypass_fake_token.json",
+              "tool_description_mutation_after_approval_001_fail.json",
+              "cross_server_tool_shadowing_001_fail.json",
+              "mcp_prompt_template_directive_001_fail.json",
+              "mcp_tool_result_recipient_swap_001_fail.json",
+              "mcp_server_forged_approval_event_001_fail.json",
+              "mcp_unconstrained_tool_schema_001_fail.json",
+          ]
           target_directory = pathlib.Path("regression_demo")
           for file in expected_files:
               file_path = target_directory / file

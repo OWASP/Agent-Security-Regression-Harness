@@ -105,7 +105,9 @@ a canonical source-qualified tool name:
 ```
 
 Scenarios that deny MCP tools should use the canonical `mcp/<server_id>/<tool>`
-name in `expected.denied_tools`.
+name in `expected.denied_tools`. The same holds for `action` in an
+[`approval_required`](assertions/approval_required.md) assertion: a bare tool name
+never matches an MCP call, so the assertion returns `not_run` instead of failing.
 
 ### MCP lifecycle events
 

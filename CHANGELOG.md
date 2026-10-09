@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Six MCP abuse-case scenarios**, each with a passing trace fixture under
+  `examples/traces/<category>/` and a failing trace fixture wired into the
+  `regression_demo` CI gate: tool-description mutation after approval and
+  cross-server tool-name shadowing (`mcp_trust_boundary`), an MCP prompt
+  template carrying a directive (`context_injection`, the first scenario in
+  that category), a tool result redirecting an authorized send
+  (`unauthorized_outbound_action`, the first scenario in that category), a
+  server-originated approval event (`approval_bypass`), and an unconstrained
+  tool input schema escalating into command execution
+  (`unsafe_tool_execution`).
+
 ## [0.2.0] — 2026-07-27
 
 Hardening and CI ergonomics. This release makes the harness comfortable to run
