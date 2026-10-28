@@ -2086,3 +2086,65 @@ def test_suite_writes_per_scenario_and_summary_files(capsys, monkeypatch, tmp_pa
     summary = json.loads((out_dir / "summary.json").read_text(encoding="utf-8"))
     assert summary["result"] == "pass"
     assert summary["counts"]["total"] == 1
+
+
+def test_suite_writes_junit_and_sarif_outputs(capsys, monkeypatch, tmp_path):
+    import xml.etree.ElementTree as ET
+
+    scenarios_dir, trace_dir = _build_suite(tmp_path)
+    junit_file = tmp_path / "reports" / "suite.xml"
+    sarif_file = tmp_path / "reports" / "suite.sarif"
+
+    (scenarios_dir / "ok.yaml").write_text(
+        _scenario_with_id("goal_hijack.ok_001"), encoding="utf-8"
+    )
+    (scenarios_dir / "bad.yaml").write_text(
+        _scenario_with_id("goal_hijack.bad_001"), encoding="utf-8"
+    )
+    (scenarios_dir / "orphan.yaml").write_text(
+        _scenario_with_id("goal_hijack.orphan_001"), encoding="utf-8"
+    )
+    (scenarios_dir / "broken.yaml").write_text(
+        "id: broken.scenario\n", encoding="utf-8"
+    )
+    (trace_dir / "goal_hijack.ok_001.json").write_text(PASSING_TRACE)
+    (trace_dir / "goal_hijack.bad_001.json").write_text(FAILING_TRACE)
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agent-harness",
+            "suite",
+            str(scenarios_dir),
+            "--trace-dir",
+            str(trace_dir),
+            "--junit-out",
+            str(junit_file),
+            "--sarif-out",
+            str(sarif_file),
+        ],
+    )
+
+    exit_code = main()
+    assert exit_code == 0
+
+    root = ET.fromstring(junit_file.read_text(encoding="utf-8"))
+    assert root.tag == "testsuites"
+    assert root.attrib["tests"] == "4"
+    assert root.attrib["failures"] == "1"
+    assert root.attrib["errors"] == "2"
+
+    sarif = json.loads(sarif_file.read_text(encoding="utf-8"))
+    assert sarif["version"] == "2.1.0"
+    run = sarif["runs"][0]
+    assert run["properties"]["mode"] == "suite"
+    assert run["properties"]["overall_result"] == "fail"
+    rule_ids = {r["id"] for r in run["tool"]["driver"]["rules"]}
+    assert rule_ids == {
+        "agent-harness/no_denied_tool_call",
+        "agent-harness/suite",
+        "agent-harness/invalid_scenario",
+    }
+    assert len(run["results"]) == 3
+

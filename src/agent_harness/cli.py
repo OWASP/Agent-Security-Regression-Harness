@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 from agent_harness.adapters import DEFAULT_HTTP_TIMEOUT_SECONDS, AdapterError
-from agent_harness.junit import result_to_junit_xml
+from agent_harness.junit import result_to_junit_xml, suite_result_to_junit_xml
 from agent_harness.runner import (
     dry_run_scenario,
     resolve_within,
@@ -22,7 +22,7 @@ from agent_harness.runner import (
     run_scenario_with_trace,
     run_suite,
 )
-from agent_harness.sarif import result_to_sarif
+from agent_harness.sarif import result_to_sarif, suite_result_to_sarif
 from agent_harness.scenario import ScenarioValidationError, load_scenario
 from agent_harness.trace import TraceValidationError, load_trace
 
@@ -129,6 +129,14 @@ def build_parser() -> argparse.ArgumentParser:
             "Optional directory to write per-scenario result JSON "
             "('<scenario_id>.json') plus an aggregate 'summary.json'."
         ),
+    )
+    suite_parser.add_argument(
+        "--junit-out",
+        help="Optional path to write aggregate suite results as JUnit XML.",
+    )
+    suite_parser.add_argument(
+        "--sarif-out",
+        help="Optional path to write aggregate suite results as SARIF 2.1.0.",
     )
     suite_parser.add_argument(
         "--exit-on-fail",
@@ -329,6 +337,22 @@ def main() -> int:
                 )
             (out_dir / "summary.json").write_text(
                 suite_result.to_json() + "\n", encoding="utf-8"
+            )
+
+        if args.junit_out:
+            junit_path = Path(args.junit_out)
+            junit_path.parent.mkdir(parents=True, exist_ok=True)
+            junit_path.write_text(
+                suite_result_to_junit_xml(suite_result),
+                encoding="utf-8",
+            )
+
+        if args.sarif_out:
+            sarif_path = Path(args.sarif_out)
+            sarif_path.parent.mkdir(parents=True, exist_ok=True)
+            sarif_path.write_text(
+                suite_result_to_sarif(suite_result),
+                encoding="utf-8",
             )
 
         print(suite_result.to_json())

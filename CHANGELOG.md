@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Suite-level `--junit-out` and `--sarif-out` reporting** — `agent-harness suite` now supports `--junit-out` (`suite_result_to_junit_xml`) and `--sarif-out` (`suite_result_to_sarif`) to emit multi-scenario `<testsuites>` JUnit XML and SARIF 2.1.0 reports (including suite-level load/trace errors and scenario artifact locations).
+
 ## [0.2.0] — 2026-07-27
 
 Hardening and CI ergonomics. This release makes the harness comfortable to run
