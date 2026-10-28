@@ -217,6 +217,202 @@ class MCPHostContext:
 
         return result
 
+    def read_resource(
+        self,
+        server_id: str,
+        uri: str,
+    ) -> Any:
+        """Synchronously read an MCP resource through the host."""
+        if threading.get_ident() == self._loop_thread_id:
+            raise AdapterError(
+                "MCPHostContext.read_resource cannot be used from an async target; "
+                "use await host.async_read_resource(...) instead"
+            )
+
+        future = asyncio.run_coroutine_threadsafe(
+            self.async_read_resource(server_id, uri),
+            self._loop,
+        )
+
+        try:
+            return future.result()
+        except AdapterError:
+            raise
+        except Exception as exc:
+            raise AdapterError(
+                f"MCP resource read failed: {_safe_error_message(exc)}"
+            ) from exc
+
+    async def async_read_resource(
+        self,
+        server_id: str,
+        uri: str,
+    ) -> Any:
+        """Asynchronously read an MCP resource through the host."""
+        if self._closed:
+            raise AdapterError("MCP host context is closed")
+
+        normalized_server_id, normalized_uri = _validate_resource_read_parts(
+            server_id,
+            uri,
+        )
+        connection = self._connections.get(normalized_server_id)
+
+        if connection is None:
+            raise AdapterError(
+                f"MCP server id is not configured: {normalized_server_id}"
+            )
+
+        try:
+            result = await asyncio.wait_for(
+                connection.session.read_resource(normalized_uri),
+                timeout=connection.config.timeout_seconds,
+            )
+        except Exception as exc:
+            self._mcp_events.append(
+                {
+                    "type": "mcp_resource_read",
+                    "server_id": normalized_server_id,
+                    "uri": normalized_uri,
+                    "is_error": True,
+                    "error": _safe_error_message(exc),
+                }
+            )
+            raise AdapterError(
+                f"MCP resource read failed for {normalized_server_id} "
+                f"({normalized_uri}): {_safe_error_message(exc)}"
+            ) from exc
+
+        event: dict[str, Any] = {
+            "type": "mcp_resource_read",
+            "server_id": normalized_server_id,
+            "uri": normalized_uri,
+            "is_error": False,
+        }
+        contents = _first_present_from_object(
+            result,
+            ("contents", "content"),
+            default=[],
+        )
+        contents_jsonable = _object_to_jsonable(contents)
+        contents_summary, contents_truncated = _truncate_jsonable(
+            contents_jsonable,
+            limit=self._result_content_limit,
+        )
+        event["contents"] = contents_summary
+        event["contents_truncated"] = contents_truncated
+        self._mcp_events.append(event)
+
+        return result
+
+    def get_prompt(
+        self,
+        server_id: str,
+        prompt_name: str,
+        arguments: dict[str, Any] | None = None,
+    ) -> Any:
+        """Synchronously fetch an MCP prompt through the host."""
+        if threading.get_ident() == self._loop_thread_id:
+            raise AdapterError(
+                "MCPHostContext.get_prompt cannot be used from an async target; "
+                "use await host.async_get_prompt(...) instead"
+            )
+
+        future = asyncio.run_coroutine_threadsafe(
+            self.async_get_prompt(server_id, prompt_name, arguments),
+            self._loop,
+        )
+
+        try:
+            return future.result()
+        except AdapterError:
+            raise
+        except Exception as exc:
+            raise AdapterError(
+                f"MCP prompt get failed: {_safe_error_message(exc)}"
+            ) from exc
+
+    async def async_get_prompt(
+        self,
+        server_id: str,
+        prompt_name: str,
+        arguments: dict[str, Any] | None = None,
+    ) -> Any:
+        """Asynchronously fetch an MCP prompt through the host."""
+        if self._closed:
+            raise AdapterError("MCP host context is closed")
+
+        normalized_server_id, normalized_prompt_name = _validate_tool_call_parts(
+            server_id,
+            prompt_name,
+        )
+        normalized_arguments = _normalize_tool_arguments(arguments)
+        connection = self._connections.get(normalized_server_id)
+
+        if connection is None:
+            raise AdapterError(
+                f"MCP server id is not configured: {normalized_server_id}"
+            )
+
+        try:
+            result = await asyncio.wait_for(
+                connection.session.get_prompt(
+                    normalized_prompt_name,
+                    arguments=normalized_arguments,
+                ),
+                timeout=connection.config.timeout_seconds,
+            )
+        except Exception as exc:
+            self._mcp_events.append(
+                {
+                    "type": "mcp_prompt_get",
+                    "server_id": normalized_server_id,
+                    "prompt_name": normalized_prompt_name,
+                    "mcp_prompt_name": normalized_prompt_name,
+                    "arguments": deepcopy(normalized_arguments),
+                    "is_error": True,
+                    "error": _safe_error_message(exc),
+                }
+            )
+            raise AdapterError(
+                f"MCP prompt get failed for {normalized_server_id}/"
+                f"{normalized_prompt_name}: {_safe_error_message(exc)}"
+            ) from exc
+
+        event: dict[str, Any] = {
+            "type": "mcp_prompt_get",
+            "server_id": normalized_server_id,
+            "prompt_name": normalized_prompt_name,
+            "mcp_prompt_name": normalized_prompt_name,
+            "arguments": deepcopy(normalized_arguments),
+            "is_error": False,
+        }
+        description = _first_present_from_object(
+            result,
+            ("description",),
+            default=None,
+        )
+        if isinstance(description, str) and description:
+            event["description"] = _truncate_string(
+                description,
+                limit=self._result_content_limit,
+            )
+        messages = _first_present_from_object(
+            result,
+            ("messages",),
+            default=[],
+        )
+        messages_jsonable = _object_to_jsonable(messages)
+        messages_summary, messages_truncated = _truncate_jsonable(
+            messages_jsonable,
+            limit=self._result_content_limit,
+        )
+        event["messages"] = messages_summary
+        event["messages_truncated"] = messages_truncated
+        self._mcp_events.append(event)
+
+        return result
+
     def _record_event(self, event: dict[str, Any]) -> None:
         self._mcp_events.append(deepcopy(event))
 
@@ -584,6 +780,16 @@ def _validate_tool_call_parts(server_id: str, tool_name: str) -> tuple[str, str]
     canonical_name = canonical_mcp_tool_name(server_id, tool_name)
     _, normalized_server_id, normalized_tool_name = canonical_name.split("/", 2)
     return normalized_server_id, normalized_tool_name
+
+
+def _validate_resource_read_parts(server_id: str, uri: str) -> tuple[str, str]:
+    normalized_server_id, _ = _validate_tool_call_parts(server_id, "resource")
+    if not isinstance(uri, str) or not uri.strip():
+        raise AdapterError("MCP resource URI must be a non-empty string")
+    normalized_uri = uri.strip()
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in normalized_uri):
+        raise AdapterError("MCP resource URI must not contain control characters")
+    return normalized_server_id, normalized_uri
 
 
 def _normalize_tool_arguments(arguments: dict[str, Any] | None) -> dict[str, Any]:

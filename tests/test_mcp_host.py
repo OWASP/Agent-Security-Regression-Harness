@@ -105,6 +105,8 @@ class FakeBehavior:
     list_tools_delay = 0
     call_tool_delay = 0
     call_tool_error = None
+    read_resource_error = None
+    get_prompt_error = None
     tools = [
         {
             "name": "delete_file",
@@ -131,6 +133,8 @@ def reset_fake_mcp_behavior():
     FakeBehavior.list_tools_delay = 0
     FakeBehavior.call_tool_delay = 0
     FakeBehavior.call_tool_error = None
+    FakeBehavior.read_resource_error = None
+    FakeBehavior.get_prompt_error = None
     FakeBehavior.tools = [
         {
             "name": "delete_file",
@@ -217,6 +221,32 @@ class FakeClientSession:
                 FakeModel(
                     type="text",
                     text=content_text,
+                )
+            ],
+        )
+
+    async def read_resource(self, uri):
+        if FakeBehavior.read_resource_error is not None:
+            raise FakeBehavior.read_resource_error
+        return SimpleNamespace(
+            contents=[
+                FakeModel(
+                    uri=uri,
+                    mimeType="text/plain",
+                    text=f"resource-body:{uri}",
+                )
+            ]
+        )
+
+    async def get_prompt(self, name, arguments=None):
+        if FakeBehavior.get_prompt_error is not None:
+            raise FakeBehavior.get_prompt_error
+        return SimpleNamespace(
+            description=f"Prompt {name}",
+            messages=[
+                FakeModel(
+                    role="user",
+                    content={"type": "text", "text": f"prompt:{name}:{arguments}"},
                 )
             ],
         )
@@ -1144,3 +1174,74 @@ def test_load_mcp_sdk_raises_install_hint_when_optional_dependency_is_missing():
         mcp_host._load_mcp_sdk(import_module=missing_import)
 
     assert str(exc_info.value) == MCP_INSTALL_HINT
+
+
+def test_run_mcp_host_target_records_resource_read_and_prompt_get_events():
+    scenario = make_mcp_scenario()
+    config = make_runtime_config()
+
+    def target(payload, host):
+        res = host.read_resource("filesystem_fixture", "file:///workspace/notes.txt")
+        prompt = host.get_prompt(
+            "filesystem_fixture",
+            "summarize_file",
+            {"topic": "security"},
+        )
+        assert res.contents[0].data["uri"] == "file:///workspace/notes.txt"
+        assert prompt.description == "Prompt summarize_file"
+        return {"final_output": "Read resource and prompt."}
+
+    execution = run_mcp_host_target(scenario, target, config, sdk_loader=fake_sdk)
+
+    resource_events = [
+        e for e in execution.trace.events if e["type"] == "mcp_resource_read"
+    ]
+    prompt_events = [
+        e for e in execution.trace.events if e["type"] == "mcp_prompt_get"
+    ]
+
+    assert len(resource_events) == 1
+    assert resource_events[0]["server_id"] == "filesystem_fixture"
+    assert resource_events[0]["uri"] == "file:///workspace/notes.txt"
+    assert resource_events[0]["mcp_method"] == "resources/read"
+    assert resource_events[0]["is_error"] is False
+
+    assert len(prompt_events) == 1
+    assert prompt_events[0]["server_id"] == "filesystem_fixture"
+    assert prompt_events[0]["mcp_prompt_name"] == "summarize_file"
+    assert prompt_events[0]["mcp_method"] == "prompts/get"
+    assert prompt_events[0]["arguments"] == {"topic": "security"}
+    assert prompt_events[0]["is_error"] is False
+
+
+def test_run_mcp_host_target_records_resource_and_prompt_errors():
+    FakeBehavior.read_resource_error = RuntimeError("resource denied")
+    FakeBehavior.get_prompt_error = RuntimeError("prompt denied")
+    scenario = make_mcp_scenario()
+    config = make_runtime_config()
+
+    async def target(payload, host):
+        with pytest.raises(AdapterError, match="MCP resource read failed"):
+            await host.async_read_resource(
+                "filesystem_fixture",
+                "file:///etc/shadow",
+            )
+        with pytest.raises(AdapterError, match="MCP prompt get failed"):
+            await host.async_get_prompt("filesystem_fixture", "admin_override")
+        return {"final_output": "Errors recorded."}
+
+    execution = asyncio.run(
+        async_run_mcp_host_target(scenario, target, config, sdk_loader=fake_sdk)
+    )
+    resource_event = [
+        e for e in execution.trace.events if e["type"] == "mcp_resource_read"
+    ][0]
+    prompt_event = [
+        e for e in execution.trace.events if e["type"] == "mcp_prompt_get"
+    ][0]
+
+    assert resource_event["is_error"] is True
+    assert "resource denied" in resource_event["error"]
+    assert prompt_event["is_error"] is True
+    assert "prompt denied" in prompt_event["error"]
+

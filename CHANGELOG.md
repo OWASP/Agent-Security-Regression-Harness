@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`MCPHostContext` resource-read and prompt-get execution (`#96`)** — add `read_resource` / `async_read_resource` and `get_prompt` / `async_get_prompt` on `MCPHostContext` with timeout enforcement, size-bounded content capture, and host-owned `mcp_resource_read` and `mcp_prompt_get` lifecycle event recording.
+
 ## [0.2.0] — 2026-07-27
 
 Hardening and CI ergonomics. This release makes the harness comfortable to run
