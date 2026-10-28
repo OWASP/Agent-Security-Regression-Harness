@@ -364,3 +364,52 @@ def test_run_http_target_reports_timeout_errors(mock_urlopen):
 
     with pytest.raises(AdapterError, match="timed out after 5 seconds"):
         run_http_target(scenario, "http://127.0.0.1:8000/run", timeout=5)
+
+
+@pytest.mark.parametrize(
+    "invalid_url",
+    [
+        "",
+        "   ",
+        "not-a-valid-url",
+        "file:///etc/passwd",
+        'data:application/json,{"messages":[],"tool_calls":[],"events":[]}',
+        "ftp://example.com/run",
+        "http:///run",
+    ],
+)
+def test_run_http_target_rejects_non_http_or_hostless_urls(invalid_url):
+    """Non-HTTP(S) schemes and hostless URLs fail closed with AdapterError."""
+    scenario = make_scenario(assertions=[])
+
+    with pytest.raises(AdapterError, match="HTTP target URL"):
+        run_http_target(scenario, invalid_url)
+
+
+@patch("urllib.request.urlopen")
+def test_run_http_target_wraps_non_utf8_response_in_adapter_error(mock_urlopen):
+    """Non-UTF-8 response bytes raise AdapterError instead of UnicodeDecodeError."""
+    scenario = make_scenario(assertions=[])
+
+    mock_response = MagicMock()
+    mock_response.read.return_value = b"\xff\xfe\xfa"
+    mock_response.__enter__.return_value = mock_response
+    mock_urlopen.return_value = mock_response
+
+    with pytest.raises(AdapterError, match="non-UTF-8 response body"):
+        run_http_target(scenario, "http://127.0.0.1:8000/run")
+
+
+@patch("urllib.request.urlopen")
+def test_run_http_target_wraps_read_timeout_in_adapter_error(mock_urlopen):
+    """A TimeoutError raised while reading the response body raises AdapterError."""
+    scenario = make_scenario(assertions=[])
+
+    mock_response = MagicMock()
+    mock_response.read.side_effect = TimeoutError("read timed out")
+    mock_response.__enter__.return_value = mock_response
+    mock_urlopen.return_value = mock_response
+
+    with pytest.raises(AdapterError, match="timed out after 7 seconds"):
+        run_http_target(scenario, "http://127.0.0.1:8000/run", timeout=7)
+

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **HTTP target URL and response validation** — `run_http_target` now rejects non-`http`/`https` schemes (such as `file://`, `data:`, and `ftp://`) and hostless URLs with `AdapterError`, and wraps read-time `TimeoutError`, `HTTPException`, and non-UTF-8 `UnicodeDecodeError` in `AdapterError`.
+
 ## [0.2.0] — 2026-07-27
 
 Hardening and CI ergonomics. This release makes the harness comfortable to run

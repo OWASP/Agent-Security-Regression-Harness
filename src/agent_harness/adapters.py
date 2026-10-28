@@ -7,8 +7,9 @@ import importlib
 import inspect
 import json
 from collections.abc import Callable
+from http import client as http_client
 from typing import Any
-from urllib import error, request
+from urllib import error, parse, request
 
 from agent_harness.scenario import Scenario
 from agent_harness.trace import Trace, TraceValidationError
@@ -117,6 +118,28 @@ def load_python_callable(
     return target
 
 
+def _validate_http_target_url(target_url: str) -> str:
+    """Validate that a live target URL uses http or https with a host."""
+    if not isinstance(target_url, str) or not target_url.strip():
+        raise AdapterError("HTTP target URL must be a non-empty string")
+
+    normalized = target_url.strip()
+    parsed = parse.urlsplit(normalized)
+    scheme = parsed.scheme.lower()
+
+    if scheme not in {"http", "https"}:
+        raise AdapterError(
+            f"HTTP target URL must use http or https scheme, got {target_url!r}"
+        )
+
+    if not parsed.netloc:
+        raise AdapterError(
+            f"HTTP target URL must include a host, got {target_url!r}"
+        )
+
+    return normalized
+
+
 def run_http_target(
     scenario: Scenario,
     target_url: str,
@@ -125,6 +148,7 @@ def run_http_target(
     headers: dict[str, str] | None = None,
 ) -> Trace:
     """Run a scenario against an HTTP target and return its trace."""
+    validated_url = _validate_http_target_url(target_url)
     body = build_target_payload(scenario)
     request_data = json.dumps(body).encode("utf-8")
     request_headers = {
@@ -134,22 +158,38 @@ def run_http_target(
     if headers:
         request_headers.update(headers)
 
-    http_request = request.Request(
-        target_url,
-        data=request_data,
-        headers=request_headers,
-        method="POST",
-    )
+    try:
+        http_request = request.Request(
+            validated_url,
+            data=request_data,
+            headers=request_headers,
+            method="POST",
+        )
+    except ValueError as exc:
+        raise AdapterError(f"Invalid HTTP target URL {target_url!r}: {exc}") from exc
 
     try:
         with request.urlopen(http_request, timeout=timeout) as response:
-            response_text = response.read().decode("utf-8")
+            raw_bytes = response.read()
     except error.URLError as exc:
         if isinstance(exc.reason, TimeoutError):
             raise AdapterError(
                 f"HTTP target request timed out after {timeout} seconds"
             ) from exc
         raise AdapterError(f"HTTP target request failed: {exc}") from exc
+    except TimeoutError as exc:
+        raise AdapterError(
+            f"HTTP target request timed out after {timeout} seconds"
+        ) from exc
+    except (http_client.HTTPException, OSError) as exc:
+        raise AdapterError(f"HTTP target request failed: {exc}") from exc
+
+    try:
+        response_text = raw_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise AdapterError(
+            f"HTTP target returned non-UTF-8 response body: {exc}"
+        ) from exc
 
     try:
         trace_data = json.loads(response_text)
