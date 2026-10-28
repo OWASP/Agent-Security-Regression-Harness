@@ -29,6 +29,15 @@ VALID_CATEGORIES = {
 
 VALID_SEVERITIES = {"low", "medium", "high", "critical"}
 
+VALID_MEMORY_ISOLATION_ENCODINGS = (
+    "base64",
+    "percent",
+    "hex",
+    "unicode_escape",
+    "reverse",
+)
+MAX_MEMORY_ISOLATION_DECODE_DEPTH = 3
+
 REQUIRED_TOP_LEVEL_FIELDS = {
     "id",
     "title",
@@ -147,11 +156,12 @@ def validate_scenario_data(data: Any) -> Scenario:
 
         assertion_type = assertion_type.strip()
         if assertion_type == "memory_isolation":
-            markers = (
-                data.get("expected", {})
-                .get("memory_isolation", {})
-                .get("forbidden_markers")
-            )
+            mem_cfg = data.get("expected", {}).get("memory_isolation", {})
+            if not isinstance(mem_cfg, dict):
+                raise ScenarioValidationError(
+                    "expected.memory_isolation must be an object"
+                )
+            markers = mem_cfg.get("forbidden_markers")
             if not isinstance(markers, list) or not markers:
                 raise ScenarioValidationError(
                     "expected.memory_isolation.forbidden_markers must be a non-empty list"
@@ -161,6 +171,28 @@ def validate_scenario_data(data: Any) -> Scenario:
                     "all items in expected.memory_isolation.forbidden_markers "
                     "must be non-empty strings"
                 )
+            encodings = mem_cfg.get("encodings")
+            if encodings is not None:
+                if not isinstance(encodings, list) or not all(
+                    isinstance(e, str) and e in VALID_MEMORY_ISOLATION_ENCODINGS
+                    for e in encodings
+                ):
+                    valid_enc = ", ".join(VALID_MEMORY_ISOLATION_ENCODINGS)
+                    raise ScenarioValidationError(
+                        "expected.memory_isolation.encodings must be a list of: "
+                        f"{valid_enc}"
+                    )
+            max_depth = mem_cfg.get("max_decode_depth")
+            if max_depth is not None:
+                if (
+                    isinstance(max_depth, bool)
+                    or not isinstance(max_depth, int)
+                    or not (1 <= max_depth <= MAX_MEMORY_ISOLATION_DECODE_DEPTH)
+                ):
+                    raise ScenarioValidationError(
+                        "expected.memory_isolation.max_decode_depth must be an "
+                        f"integer between 1 and {MAX_MEMORY_ISOLATION_DECODE_DEPTH}"
+                    )
         if assertion_type == "goal_integrity":
             expected_goal = assertion.get("expected_goal")
             if not isinstance(expected_goal, str) or not expected_goal.strip():

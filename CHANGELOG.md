@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Opt-in `memory_isolation` encoding/decode ladder (`#166`)** — `expected.memory_isolation` now accepts optional `encodings` (`base64`, `percent`, `hex`, `unicode_escape`, `reverse`) and `max_decode_depth` (`1..3`, default `1`) to detect obfuscated marker exfiltration across single- and multi-rung encodings while preserving redaction-safe SHA-256 evidence and literal-only default semantics.
+
 ## [0.2.0] — 2026-07-27
 
 Hardening and CI ergonomics. This release makes the harness comfortable to run

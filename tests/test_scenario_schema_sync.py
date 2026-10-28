@@ -177,6 +177,32 @@ _PYTHON_ONLY_REJECT_CASES = [
     pytest.param(
         _mutate(
             _valid_scenario(),
+            assertions=[{"type": "memory_isolation"}],
+            expected={
+                "memory_isolation": {
+                    "forbidden_markers": ["secret"],
+                    "encodings": ["rot13"],
+                }
+            },
+        ),
+        id="memory_isolation-invalid-encoding",
+    ),
+    pytest.param(
+        _mutate(
+            _valid_scenario(),
+            assertions=[{"type": "memory_isolation"}],
+            expected={
+                "memory_isolation": {
+                    "forbidden_markers": ["secret"],
+                    "max_decode_depth": 4,
+                }
+            },
+        ),
+        id="memory_isolation-excessive-decode-depth",
+    ),
+    pytest.param(
+        _mutate(
+            _valid_scenario(),
             assertions=[{"type": "goal_integrity"}],
         ),
         id="goal_integrity-missing-expected_goal",
