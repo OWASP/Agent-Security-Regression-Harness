@@ -450,9 +450,9 @@ def _source_metadata(
 
     for output_field, (call_fields, server_fields) in field_map.items():
         value = (
-            _first_present(call, call_fields)
+            _first_present(registered_server, server_fields)
             or _first_present(server, server_fields)
-            or _first_present(registered_server, server_fields)
+            or _first_present(call, call_fields)
         )
         if isinstance(value, str) and value.strip():
             metadata[output_field] = value.strip()
@@ -494,13 +494,10 @@ def _add_event_source_metadata(
     }
 
     for output_field, (event_fields, server_fields) in field_map.items():
-        if output_field in event:
-            continue
-
         value = (
-            _first_present(raw_event, event_fields)
+            _first_present(registered_server, server_fields)
             or _first_present(server, server_fields)
-            or _first_present(registered_server, server_fields)
+            or _first_present(raw_event, event_fields)
         )
         if isinstance(value, str) and value.strip():
             event[output_field] = value.strip()
@@ -509,10 +506,11 @@ def _add_event_source_metadata(
 def _first_present(
     source: dict[str, Any],
     fields: tuple[str, ...],
-) -> Any:
+) -> str | None:
     for field in fields:
-        if field in source:
-            return source[field]
+        value = source.get(field)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
 
     return None
 

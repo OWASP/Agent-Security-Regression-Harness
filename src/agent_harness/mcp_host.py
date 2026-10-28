@@ -856,11 +856,11 @@ def _reject_target_mcp_trace_evidence(workflow_result: dict[str, Any]) -> None:
         forbidden.append("tool_calls")
 
     events = workflow_result.get("events", [])
+    if "events" in workflow_result and not isinstance(events, list):
+        raise AdapterError("MCP host target events must be a list")
+
     if isinstance(events, list) and any(
-        isinstance(event, dict)
-        and isinstance(event.get("type"), str)
-        and event["type"].startswith("mcp_")
-        for event in events
+        _event_contains_mcp_evidence(event) for event in events
     ):
         forbidden.append("events")
 
@@ -870,6 +870,18 @@ def _reject_target_mcp_trace_evidence(workflow_result: dict[str, Any]) -> None:
             "MCP host target must not return MCP trace evidence fields: "
             f"{joined}"
         )
+
+
+def _event_contains_mcp_evidence(event: Any) -> bool:
+    if not isinstance(event, dict):
+        return False
+
+    for key in ("type", "mcp_event_type"):
+        value = event.get(key)
+        if isinstance(value, str) and value.strip().startswith("mcp_"):
+            return True
+
+    return False
 
 
 def _tool_call_contains_mcp_evidence(tool_call: Any) -> bool:
@@ -888,8 +900,10 @@ def _tool_call_contains_canonical_mcp_tool_name(tool_call: Any) -> bool:
 
     for field_name in ("name", "tool", "tool_name"):
         value = tool_call.get(field_name)
-        if isinstance(value, str) and _is_canonical_mcp_tool_name(value.strip()):
-            return True
+        if isinstance(value, str):
+            stripped = value.strip()
+            if stripped.startswith("mcp/") or _is_canonical_mcp_tool_name(stripped):
+                return True
 
     return False
 

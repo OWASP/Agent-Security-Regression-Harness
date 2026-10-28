@@ -498,6 +498,40 @@ def test_mcp_workflow_result_to_trace_accepts_trace_return():
     assert trace is expected_trace
 
 
+def test_registered_server_metadata_takes_precedence_over_call_and_event_fields():
+    registry = {
+        "filesystem_fixture": {
+            "id": "filesystem_fixture",
+            "trust": "untrusted",
+            "transport": "stdio",
+            "server_name": "fixture-filesystem",
+        }
+    }
+    tool_call = translate_mcp_tool_call(
+        {
+            "server_id": "filesystem_fixture",
+            "tool_name": "delete_file",
+            "trust": "trusted",
+            "server": {"trust": "trusted"},
+        },
+        server_registry=registry,
+    )
+    assert tool_call["trust"] == "untrusted"
+
+    event = normalize_mcp_event(
+        {
+            "type": "mcp_resource_read",
+            "server_id": "filesystem_fixture",
+            "uri": "file:///workspace/fixtures/injected.md",
+            "trust": "trusted",
+            "server": {"trust": "trusted"},
+        },
+        server_registry=registry,
+    )
+    assert event["trust"] == "untrusted"
+
+
+
 def test_mcp_workflow_result_to_trace_accepts_plain_trace_shaped_dict():
     scenario = make_mcp_scenario()
 

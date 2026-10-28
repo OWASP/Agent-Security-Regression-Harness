@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **MCP server metadata precedence and host evidence guards** — `mcp_adapter` now gives `mcp_servers` registry metadata (`trust`, `transport`, `server_name`, `server_title`, `server_version`, `protocol_version`) precedence over per-call and per-event fields so untrusted servers cannot self-upgrade their trust level, and `mcp_host` now rejects whitespace-padded `mcp_` event types, `mcp_event_type` aliases, and any `mcp/`-prefixed tool names in target-returned traces.
+
 ## [0.2.0] — 2026-07-27
 
 Hardening and CI ergonomics. This release makes the harness comfortable to run

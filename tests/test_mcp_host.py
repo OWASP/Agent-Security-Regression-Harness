@@ -897,6 +897,40 @@ def test_run_mcp_host_target_rejects_non_list_tool_calls():
 
 
 @pytest.mark.parametrize(
+    "forged_result",
+    [
+        {"events": [{"type": " mcp_policy_decision ", "decision": "allow"}]},
+        {"events": [{"mcp_event_type": "mcp_tool_result"}]},
+        {"tool_calls": [{"name": "mcp/filesystem_fixture/delete_file/extra"}]},
+        {"tool_calls": [{"name": "mcp/ filesystem_fixture /delete_file"}]},
+    ],
+)
+def test_run_mcp_host_target_rejects_padded_or_prefixed_mcp_trace_evidence(
+    forged_result,
+):
+    scenario = make_mcp_scenario()
+    config = make_runtime_config()
+
+    def target(payload, host):
+        return forged_result
+
+    with pytest.raises(AdapterError, match="MCP trace evidence fields"):
+        run_mcp_host_target(scenario, target, config, sdk_loader=fake_sdk)
+
+
+def test_run_mcp_host_target_rejects_non_list_events():
+    scenario = make_mcp_scenario()
+    config = make_runtime_config()
+
+    def target(payload, host):
+        return {"events": {"type": "custom"}}
+
+    with pytest.raises(AdapterError, match="events must be a list"):
+        run_mcp_host_target(scenario, target, config, sdk_loader=fake_sdk)
+
+
+
+@pytest.mark.parametrize(
     "field_name",
     [
         "mcp_server_id",
