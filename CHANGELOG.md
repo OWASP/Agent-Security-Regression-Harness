@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`scope_attenuation` assertion** — fail when a delegated child hop widens its parent grant's tools, resources, expiry, max hop, or purpose, or invokes a tool dropped from the parent grant.
+- **`commit_point_approval` assertion** — fail when an irreversible tool call lacks a single-use approval from a trusted source bound to the exact tool, target, canonical argument digest (`args_digest`), grant id, purpose, and policy/state epoch.
+- **Delegation and commit-point scenarios** — add `privilege_escalation/hop_scope_restoration_001.yaml` and `approval_bypass/commit_point_argument_mutation_001.yaml` with passing and failing trace fixtures.
+
 ## [0.2.0] — 2026-07-27
 
 Hardening and CI ergonomics. This release makes the harness comfortable to run

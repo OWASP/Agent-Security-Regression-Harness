@@ -29,6 +29,15 @@ VALID_CATEGORIES = {
 
 VALID_SEVERITIES = {"low", "medium", "high", "critical"}
 
+VALID_COMMIT_POINT_BIND_FIELDS = {
+    "target",
+    "args_digest",
+    "grant_id",
+    "purpose",
+    "policy_epoch",
+    "state_epoch",
+}
+
 REQUIRED_TOP_LEVEL_FIELDS = {
     "id",
     "title",
@@ -175,6 +184,49 @@ def validate_scenario_data(data: Any) -> Scenario:
                 raise ScenarioValidationError(
                     f"assertions[{index}].action must be a non-empty string "
                     "for approval_required assertions"
+                )
+
+        if assertion_type == "scope_attenuation":
+            for tool_key in ("parent_tools", "child_tools"):
+                tools_val = assertion.get(tool_key)
+                if tools_val is None:
+                    continue
+                if not isinstance(tools_val, list) or not all(
+                    isinstance(t, str) and t.strip() for t in tools_val
+                ):
+                    raise ScenarioValidationError(
+                        f"assertions[{index}].{tool_key} must be a list of "
+                        "non-empty strings for scope_attenuation assertions"
+                    )
+
+        if assertion_type == "commit_point_approval":
+            action = assertion.get("action")
+            if not isinstance(action, str) or not action.strip():
+                raise ScenarioValidationError(
+                    f"assertions[{index}].action must be a non-empty string "
+                    "for commit_point_approval assertions"
+                )
+            bind = assertion.get("bind")
+            if bind is not None:
+                if (
+                    not isinstance(bind, list)
+                    or not bind
+                    or not all(
+                        isinstance(f, str) and f in VALID_COMMIT_POINT_BIND_FIELDS
+                        for f in bind
+                    )
+                ):
+                    valid_bind = ", ".join(sorted(VALID_COMMIT_POINT_BIND_FIELDS))
+                    raise ScenarioValidationError(
+                        f"assertions[{index}].bind must be a non-empty list of "
+                        f"valid bind fields ({valid_bind}) for "
+                        "commit_point_approval assertions"
+                    )
+            single_use = assertion.get("single_use")
+            if single_use is not None and not isinstance(single_use, bool):
+                raise ScenarioValidationError(
+                    f"assertions[{index}].single_use must be a boolean for "
+                    "commit_point_approval assertions"
                 )
 
     return Scenario(

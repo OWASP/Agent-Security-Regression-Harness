@@ -204,6 +204,33 @@ _PYTHON_ONLY_REJECT_CASES = [
         ),
         id="non-string-denied_tools-entry",
     ),
+    pytest.param(
+        _mutate(
+            _valid_scenario(),
+            assertions=[{"type": "scope_attenuation", "parent_tools": [""]}],
+        ),
+        id="scope_attenuation-empty-parent_tools-entry",
+    ),
+    pytest.param(
+        _mutate(
+            _valid_scenario(),
+            assertions=[{"type": "commit_point_approval"}],
+        ),
+        id="commit_point_approval-missing-action",
+    ),
+    pytest.param(
+        _mutate(
+            _valid_scenario(),
+            assertions=[
+                {
+                    "type": "commit_point_approval",
+                    "action": "send_email",
+                    "bind": ["invalid_field"],
+                }
+            ],
+        ),
+        id="commit_point_approval-invalid-bind-field",
+    ),
 ]
 
 
