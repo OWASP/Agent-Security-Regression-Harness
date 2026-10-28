@@ -296,3 +296,46 @@ def test_run_openai_agents_target_reports_missing_optional_dependency(monkeypatc
             scenario,
             object(),
         )
+
+
+def test_run_openai_agents_target_preserves_structured_events_and_skips_output_items():
+    scenario = make_scenario()
+
+    class FakeRunner:
+        @staticmethod
+        def run_sync(agent, runner_input, **kwargs):
+            return SimpleNamespace(
+                final_output="Done.",
+                new_items=[
+                    {
+                        "type": "tool_call_item",
+                        "name": "send_email",
+                        "arguments": {"to": "alice@example.com"},
+                    },
+                    {
+                        "type": "tool_call_output_item",
+                        "name": "send_email",
+                        "output": "sent",
+                    },
+                ],
+                events=[
+                    {
+                        "type": "approval",
+                        "action": "send_email",
+                        "decision": "approved",
+                        "source": "trusted_policy",
+                    }
+                ],
+            )
+
+    trace = run_openai_agents_target(scenario, object(), runner=FakeRunner)
+
+    assert len(trace.tool_calls) == 1
+    assert trace.tool_calls[0]["name"] == "send_email"
+    assert trace.events[-1] == {
+        "type": "approval",
+        "action": "send_email",
+        "decision": "approved",
+        "source": "trusted_policy",
+    }
+

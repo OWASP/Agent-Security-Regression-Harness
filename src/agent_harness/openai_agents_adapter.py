@@ -73,7 +73,7 @@ def _extract_tool_call(item: Any) -> dict[str, Any] | None:
     item_type = str(_field(item, "type", "") or "")
     class_name = type(item).__name__
 
-    if "Output" in class_name or item_type.endswith("_output"):
+    if "Output" in class_name or item_type.endswith(("_output", "_output_item")):
         return None
 
     raw_item = _field(item, "raw_item", item)
@@ -144,6 +144,20 @@ def _trace_from_openai_agents_result(
                 "id": goal_event_id,
             }
         )
+
+    raw_events = _field(result, "events")
+    if raw_events is not None:
+        if not isinstance(raw_events, list):
+            raise AdapterError("OpenAI Agents SDK result field events must be a list")
+        for ev in raw_events:
+            if not isinstance(ev, dict):
+                raise AdapterError("OpenAI Agents SDK result events must be objects")
+            ev_type = ev.get("type")
+            if not isinstance(ev_type, str) or not ev_type.strip():
+                raise AdapterError(
+                    "OpenAI Agents SDK result event type must be non-empty"
+                )
+            events.append(dict(ev))
 
     trace_data = {
         "messages": [

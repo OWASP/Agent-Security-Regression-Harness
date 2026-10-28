@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **OpenAI Agents and LangChain/LangGraph adapter trace extraction** — `openai_agents_adapter` now preserves structured `events` on run results and skips dict-shaped `tool_call_output_item` records when extracting tool calls; `langchain_adapter` now deduplicates tool calls sharing a `tool_call` `id` across top-level state and `messages` and properly unpacks LangGraph `stream_mode="updates"` chunks when a graph node is named `content`, `role`, or `type`.
+
 ## [0.2.0] — 2026-07-27
 
 Hardening and CI ergonomics. This release makes the harness comfortable to run

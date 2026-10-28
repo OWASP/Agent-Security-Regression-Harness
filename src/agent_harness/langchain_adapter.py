@@ -200,6 +200,7 @@ def langchain_stream_updates_to_trace(
 def extract_langchain_tool_calls(result: Any) -> list[dict[str, Any]]:
     """Extract harness tool calls from supported LangChain output shapes."""
     tool_calls: list[dict[str, Any]] = []
+    seen_call_ids: set[str] = set()
     sources = [result]
     messages = _iter_messages(result)
 
@@ -208,6 +209,12 @@ def extract_langchain_tool_calls(result: Any) -> list[dict[str, Any]]:
 
     for source in sources:
         for raw_call in _raw_tool_calls(source):
+            call_id = _field(raw_call, "id") or _field(raw_call, "tool_call_id")
+            if isinstance(call_id, str) and call_id.strip():
+                normalized_id = call_id.strip()
+                if normalized_id in seen_call_ids:
+                    continue
+                seen_call_ids.add(normalized_id)
             tool_call = _normalize_tool_call(raw_call)
 
             if tool_call is not None:
@@ -283,7 +290,12 @@ def _iter_stream_update_payloads(update: Any) -> list[Any]:
     if not isinstance(update, dict):
         raise AdapterError("LangChain/LangGraph update stream chunks must be objects")
 
-    if "messages" in update or _looks_like_message(update):
+    if "messages" in update:
+        return [update]
+
+    if _looks_like_message(update) and not all(
+        isinstance(v, dict) for v in update.values()
+    ):
         return [update]
 
     return [payload for payload in update.values() if payload is not None]
