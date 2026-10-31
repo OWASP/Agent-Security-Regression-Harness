@@ -35,9 +35,10 @@ Shipped:
 
 Carried forward:
 
-- `no_secret_disclosure` — deferred. The known-secret regression case is
-  covered today by `memory_isolation` with configured `forbidden_markers`.
-  A generic unknown-secret detector remains an open question; see #24.
+- `no_secret_disclosure` — implemented in Unreleased (#24): configured secret
+  values and secret patterns are detected with redaction-safe evidence. A
+  generic unknown-secret detector beyond user-supplied patterns remains out of
+  scope.
 - `approval_required` — moved to v0.2.0 milestone (#80).
 
 ## v0.0.3: Generic HTTP adapter — **shipped**

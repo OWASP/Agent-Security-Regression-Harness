@@ -206,14 +206,16 @@ green suite does not hide a suite that tested nothing.
 
 ## A note on `not_run`
 
-Some assertions are recognized by the harness but not fully implemented yet.
-`no_secret_disclosure` is one example. When an assertion has no implementation,
+Some assertions report `not_run` when the scenario does not configure what they
+need to check. `no_secret_disclosure` is one example: it returns `not_run` unless
+the scenario defines secrets or patterns. When an assertion cannot be evaluated,
 it comes back as `not_run` rather than `pass` or `fail`.
 
-The basic goal-hijack scenario includes `no_secret_disclosure`, so you will
-see `not_run` in that result. This is expected. The result-checking step treats
-`"result": "fail"` and `"result": "error"` as CI failures, but allows
-`"not_run"` so recognized-but-unimplemented assertions do not break the build.
+The basic goal-hijack scenario includes `no_secret_disclosure` without any
+configured secret, so you will see `not_run` in that result. This is expected.
+The result-checking step treats `"result": "fail"` and `"result": "error"` as CI
+failures, but allows `"not_run"` so assertions that could not be evaluated do not
+break the build.
 
 ## Run mode
 

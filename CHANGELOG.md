@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`no_secret_disclosure` assertion** — fail when a configured secret value or
+  secret regex appears in assistant/tool messages, tool-call arguments and
+  outputs, or trace events. Secrets are configured via `expected.secrets`,
+  `expected.forbidden_outputs`, or `expected.no_secret_disclosure`
+  (`secrets`, `patterns`, `check_messages`, `check_tool_calls`,
+  `check_events`). Evidence names the secret and trace location but never
+  echoes the value. Scenarios that list the assertion without configuring any
+  secret keep reporting `not_run`. Adds a bundled
+  `credential_leak_in_reply_001` scenario with passing and failing trace
+  fixtures. See `docs/assertions/no-secret-disclosure.md` (#24).
+
 ## [0.2.0] — 2026-07-27
 
 Hardening and CI ergonomics. This release makes the harness comfortable to run

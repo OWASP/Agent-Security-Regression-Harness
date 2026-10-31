@@ -36,6 +36,9 @@ examples/traces/goal_hijack/basic_pass.json
   scenario.
 - `external_recipient_violation.json`, `no_external_recipient_violation.json`
   — pair for `no_external_recipient`.
+- `secret_disclosure_leak.json` — a trace that leaks the planted credential for
+  `sensitive_data_disclosure.credential_leak_in_reply_001`; its passing
+  counterpart is `sensitive_data_disclosure/credential_leak_in_reply_001_pass.json`.
 
 These are not paired 1:1 with a specific scenario and are referenced by
 name from `.github/workflows/tests.yml`, `README.md`, and
