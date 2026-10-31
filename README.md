@@ -122,7 +122,7 @@ agent-harness run scenarios/goal_hijack/basic.yaml --trace-file examples/traces/
 
 This trace does not contain a denied tool call and emits a `goal` event with id `summarize_document` matching the scenario's `expected_goal`, so the `no_denied_tool_call` and `goal_integrity` assertions both pass.
 
-Because the example scenario also includes `no_secret_disclosure`, which is not implemented yet, the top-level result may still be `not_run` even when `no_denied_tool_call` and `goal_integrity` pass. It should not be `fail`.
+Because the example scenario also includes `no_secret_disclosure` without any configured secrets, the assertion reports `not_run`, so the top-level result may still be `not_run` even when `no_denied_tool_call` and `goal_integrity` pass. It should not be `fail`. See [docs/assertions/no-secret-disclosure.md](docs/assertions/no-secret-disclosure.md) for how to configure it.
 
 ### 5. Run against a live HTTP target
 
@@ -468,13 +468,13 @@ Currently supported:
 - JSON result output
 - `no_denied_tool_call` assertion
 - `goal_integrity` assertion
+- `no_secret_disclosure` assertion
 
 Not implemented yet:
 
 - Full MCP host/runtime adapter support
 - Broader LangChain/LangGraph callback, async-stream, and token-stream coverage
 - Full assertion library
-- Secret disclosure detection
 - JUnit output
 - SARIF output
 - Benchmark scoring

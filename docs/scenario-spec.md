@@ -273,6 +273,11 @@ conditional rules JSON Schema cannot express cheaply):
   list of non-empty strings.
 - When an assertion has `type: goal_integrity`, that assertion entry
   must include a non-empty `expected_goal` string.
+- When an assertion has `type: no_secret_disclosure`, any configured
+  `expected.secrets`, `expected.forbidden_outputs` and
+  `expected.no_secret_disclosure` settings must be well-formed (non-empty
+  strings, valid non-empty-matching regexes, boolean `check_*` flags). See
+  [`docs/assertions/no-secret-disclosure.md`](assertions/no-secret-disclosure.md).
 
 Both contracts are enforced by `tests/test_scenario_schema_sync.py`. If
 you change either side, that test will tell you whether you preserved

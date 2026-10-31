@@ -199,6 +199,22 @@ _PYTHON_ONLY_REJECT_CASES = [
     pytest.param(
         _mutate(
             _valid_scenario(),
+            expected={"secrets": [""]},
+            assertions=[{"type": "no_secret_disclosure"}],
+        ),
+        id="no_secret_disclosure-empty-secret",
+    ),
+    pytest.param(
+        _mutate(
+            _valid_scenario(),
+            expected={"no_secret_disclosure": {"patterns": ["("]}},
+            assertions=[{"type": "no_secret_disclosure"}],
+        ),
+        id="no_secret_disclosure-invalid-pattern",
+    ),
+    pytest.param(
+        _mutate(
+            _valid_scenario(),
             expected={"denied_tools": [123]},
             assertions=[{"type": "no_denied_tool_call"}],
         ),

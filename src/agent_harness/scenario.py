@@ -45,6 +45,206 @@ class ScenarioValidationError(ValueError):
     """Raised when a scenario file is invalid."""
 
 
+SECRET_NAME_RE = re.compile(r"^[A-Za-z0-9._:-]{1,64}$")
+NO_SECRET_DISCLOSURE_KEYS = {
+    "secrets",
+    "patterns",
+    "check_messages",
+    "check_tool_calls",
+    "check_events",
+}
+NO_SECRET_DISCLOSURE_SURFACE_FLAGS = (
+    "check_messages",
+    "check_tool_calls",
+    "check_events",
+)
+
+
+@dataclass(frozen=True)
+class SecretRule:
+    """One configured secret value or secret regex pattern.
+
+    ``label`` is the redaction-safe identifier used in assertion evidence.
+    Exactly one of ``value`` and ``pattern`` is set.
+    """
+
+    label: str
+    value: str | None = None
+    pattern: str | None = None
+    named: bool = False
+
+
+@dataclass(frozen=True)
+class NoSecretDisclosureConfig:
+    """Normalized ``no_secret_disclosure`` configuration for a scenario."""
+
+    secrets: tuple[SecretRule, ...] = ()
+    patterns: tuple[SecretRule, ...] = ()
+    check_messages: bool = True
+    check_tool_calls: bool = True
+    check_events: bool = True
+
+    @property
+    def rule_count(self) -> int:
+        return len(self.secrets) + len(self.patterns)
+
+
+def _parse_secret_name(field_name: str, name: Any) -> str:
+    if not isinstance(name, str) or not SECRET_NAME_RE.fullmatch(name):
+        raise ScenarioValidationError(
+            f"{field_name}.name must be 1-64 characters of letters, digits, "
+            "'.', '_', ':' or '-'"
+        )
+    return name
+
+
+def _parse_secret_entries(
+    field_name: str,
+    entries: Any,
+    *,
+    value_key: str,
+    allow_named: bool,
+) -> list[SecretRule]:
+    if not isinstance(entries, list):
+        raise ScenarioValidationError(f"{field_name} must be a list")
+
+    rules: list[SecretRule] = []
+    for index, entry in enumerate(entries):
+        entry_name = f"{field_name}[{index}]"
+        label = entry_name
+        named = False
+        raw_value: Any = entry
+
+        if isinstance(entry, dict):
+            if not allow_named:
+                raise ScenarioValidationError(
+                    f"{entry_name} must be a non-empty string"
+                )
+            unknown = sorted(set(entry) - {"name", value_key})
+            if unknown:
+                raise ScenarioValidationError(
+                    f"{entry_name} has unsupported keys: {', '.join(map(str, unknown))}"
+                )
+            raw_value = entry.get(value_key)
+            if "name" in entry:
+                label = _parse_secret_name(entry_name, entry["name"])
+                named = True
+
+        if not isinstance(raw_value, str) or not raw_value:
+            suffix = f".{value_key}" if isinstance(entry, dict) else ""
+            raise ScenarioValidationError(
+                f"{entry_name}{suffix} must be a non-empty string"
+            )
+
+        if value_key == "pattern":
+            try:
+                compiled = re.compile(raw_value)
+            except re.error as exc:
+                raise ScenarioValidationError(
+                    f"{entry_name} is not a valid regular expression: {exc}"
+                ) from exc
+            if compiled.search("") is not None:
+                raise ScenarioValidationError(
+                    f"{entry_name} must not match the empty string"
+                )
+            rules.append(SecretRule(label=label, pattern=raw_value, named=named))
+        else:
+            rules.append(SecretRule(label=label, value=raw_value, named=named))
+
+    return rules
+
+
+def parse_no_secret_disclosure_config(
+    expected: dict[str, Any],
+) -> NoSecretDisclosureConfig:
+    """Parse and validate no_secret_disclosure settings from ``expected``.
+
+    Secrets may be configured as ``expected.secrets`` (strings or
+    ``{name, value}`` objects), ``expected.forbidden_outputs`` (strings), and
+    under ``expected.no_secret_disclosure`` (``secrets``, ``patterns`` and
+    the ``check_*`` surface flags). All sources are merged. Returning a config
+    with no rules is valid; the assertion then reports ``not_run``.
+    """
+    options = expected.get("no_secret_disclosure", {})
+    if options is None:
+        options = {}
+    if not isinstance(options, dict):
+        raise ScenarioValidationError("expected.no_secret_disclosure must be an object")
+
+    unknown = sorted(set(options) - NO_SECRET_DISCLOSURE_KEYS)
+    if unknown:
+        raise ScenarioValidationError(
+            "expected.no_secret_disclosure has unsupported keys: "
+            + ", ".join(map(str, unknown))
+        )
+
+    flags: dict[str, bool] = {}
+    for flag in NO_SECRET_DISCLOSURE_SURFACE_FLAGS:
+        value = options.get(flag, True)
+        if not isinstance(value, bool):
+            raise ScenarioValidationError(
+                f"expected.no_secret_disclosure.{flag} must be a boolean"
+            )
+        flags[flag] = value
+    if not any(flags.values()):
+        raise ScenarioValidationError(
+            "expected.no_secret_disclosure must enable at least one of "
+            "check_messages, check_tool_calls, check_events"
+        )
+
+    secrets: list[SecretRule] = []
+    for field_name, key, source in (
+        ("expected.secrets", "value", expected.get("secrets")),
+        ("expected.forbidden_outputs", "value", expected.get("forbidden_outputs")),
+        (
+            "expected.no_secret_disclosure.secrets",
+            "value",
+            options.get("secrets"),
+        ),
+    ):
+        if source is None:
+            continue
+        secrets.extend(
+            _parse_secret_entries(
+                field_name,
+                source,
+                value_key=key,
+                allow_named=field_name != "expected.forbidden_outputs",
+            )
+        )
+
+    patterns: list[SecretRule] = []
+    if options.get("patterns") is not None:
+        patterns = _parse_secret_entries(
+            "expected.no_secret_disclosure.patterns",
+            options["patterns"],
+            value_key="pattern",
+            allow_named=True,
+        )
+
+    seen_labels: set[str] = set()
+    for rule in (*secrets, *patterns):
+        if rule.label in seen_labels:
+            raise ScenarioValidationError(
+                f"duplicate secret name in no_secret_disclosure config: {rule.label}"
+            )
+        seen_labels.add(rule.label)
+
+    for rule in (*secrets, *patterns):
+        if rule.named and any(s.value and s.value in rule.label for s in secrets):
+            raise ScenarioValidationError(
+                "secret names must not contain a configured secret value"
+            )
+
+    return NoSecretDisclosureConfig(
+        secrets=tuple(secrets),
+        patterns=tuple(patterns),
+        check_messages=flags["check_messages"],
+        check_tool_calls=flags["check_tool_calls"],
+        check_events=flags["check_events"],
+    )
+
+
 @dataclass(frozen=True)
 class Scenario:
     """Validated scenario metadata and raw content."""
@@ -146,6 +346,8 @@ def validate_scenario_data(data: Any) -> Scenario:
             )
 
         assertion_type = assertion_type.strip()
+        if assertion_type == "no_secret_disclosure":
+            parse_no_secret_disclosure_config(expected)
         if assertion_type == "memory_isolation":
             markers = (
                 data.get("expected", {})

@@ -97,12 +97,22 @@ jobs:
           agent-harness run scenarios/approval_bypass/claimed_preauthorization_root_password_001.yaml \
             --trace-file examples/traces/approval_bypass_fake_token.json \
             --out regression_demo/approval_bypass_fake_token.json
+      - name: Run secret disclosure (clean) against passing trace
+        run: |
+          agent-harness run scenarios/sensitive_data_disclosure/credential_leak_in_reply_001.yaml \
+            --trace-file examples/traces/sensitive_data_disclosure/credential_leak_in_reply_001_pass.json \
+            --out results/secret_disclosure_clean.json
+      - name: Show regression detection — secret disclosure (leak) against failing trace
+        run: |
+          agent-harness run scenarios/sensitive_data_disclosure/credential_leak_in_reply_001.yaml \
+            --trace-file examples/traces/secret_disclosure_leak.json \
+            --out regression_demo/secret_disclosure_leak.json
       - name: Dry-run remaining scenarios without trace files
         run: |
           for f in scenarios/*/*.yaml; do
             base=$(basename "$f" .yaml)
             case "$f" in
-              */goal_hijack/basic.yaml|*/goal_hijack/outbound_email_exfiltration_001.yaml|*/memory_isolation/cross_session_leak_001.yaml|*/approval_bypass/claimed_preauthorization_root_password_001.yaml)
+              */goal_hijack/basic.yaml|*/goal_hijack/outbound_email_exfiltration_001.yaml|*/memory_isolation/cross_session_leak_001.yaml|*/approval_bypass/claimed_preauthorization_root_password_001.yaml|*/sensitive_data_disclosure/credential_leak_in_reply_001.yaml)
                 ;; # already run above
               *)
                 echo "Dry-run: $f"
@@ -133,7 +143,7 @@ jobs:
           python - <<'PY'
           import pathlib, sys
           missing_files = []
-          expected_files = ["memory_isolation_leak.json", "approval_bypass_fake_token.json"]
+          expected_files = ["memory_isolation_leak.json", "approval_bypass_fake_token.json", "secret_disclosure_leak.json"]
           target_directory = pathlib.Path("regression_demo")
           for file in expected_files:
               file_path = target_directory / file
