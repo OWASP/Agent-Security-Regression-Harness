@@ -69,8 +69,19 @@ def load_trace(path: str | Path) -> Trace:
         raise TraceValidationError(f"trace file does not exist: {trace_path}")
     
     try:
-        data = json.loads(trace_path.read_text(encoding="utf-8"))
+        text = trace_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise TraceValidationError(f"trace file is not valid UTF-8: {trace_path}") from exc
+    except OSError as exc:
+        raise TraceValidationError(
+            f"cannot read trace file: {trace_path}: {exc.strerror or 'I/O error'}"
+        ) from exc
+
+    try:
+        data = json.loads(text)
     except json.JSONDecodeError as exc:
         raise TraceValidationError(f"invalid JSON: {exc}") from exc
+    except RecursionError as exc:
+        raise TraceValidationError("invalid JSON: nesting is too deep") from exc
     
     return Trace.from_dict(data)
