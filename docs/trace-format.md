@@ -18,6 +18,8 @@ A trace contains three top-level lists:
 
 All three fields are required by convention and should be present even when empty.
 
+The harness fails closed on traces that would otherwise parse as empty: a JSON object that defines none of `messages`, `tool_calls`, or `events` is rejected, as is a near-miss spelling of one of them (for example `toolcalls` or `toolCalls`). Unrelated extra keys are still accepted.
+
 ## Messages
 
 `messages` records conversation-like activity.

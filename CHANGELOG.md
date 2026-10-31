@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Fail closed on unrecognized trace shapes** — `Trace.from_dict` (and therefore
+  `--trace-file`, `suite`, and live adapters) now rejects JSON objects that define
+  none of `messages`, `tool_calls`, or `events`, and objects with a misspelled
+  trace field such as `toolcalls`. Previously these parsed as an empty trace, so
+  assertions like `no_denied_tool_call` passed on a trace that actually
+  contained a violation (#195).
+
 ## [0.2.0] — 2026-07-27
 
 Hardening and CI ergonomics. This release makes the harness comfortable to run
