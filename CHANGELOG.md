@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Unreadable or non-UTF-8 input files no longer crash the CLI** — `load_trace` and
+  `load_scenario` now convert `UnicodeDecodeError`, `OSError` and
+  `RecursionError` into `TraceValidationError` / `ScenarioValidationError`.
+  `run` and `validate` report a clean error instead of a traceback, and
+  `suite` records a per-scenario `invalid_trace` / `invalid_scenario` error
+  instead of aborting every remaining scenario (#196).
+
 ## [0.2.0] — 2026-07-27
 
 Hardening and CI ergonomics. This release makes the harness comfortable to run

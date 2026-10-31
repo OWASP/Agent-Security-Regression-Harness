@@ -67,9 +67,22 @@ def load_scenario(path: str | Path) -> Scenario:
         raise ScenarioValidationError("scenario file must use .yaml or .yml extension")
 
     try:
-        data = yaml.safe_load(scenario_path.read_text(encoding="utf-8"))
+        text = scenario_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise ScenarioValidationError(
+            f"scenario file is not valid UTF-8: {scenario_path}"
+        ) from exc
+    except OSError as exc:
+        raise ScenarioValidationError(
+            f"cannot read scenario file: {scenario_path}: {exc.strerror or 'I/O error'}"
+        ) from exc
+
+    try:
+        data = yaml.safe_load(text)
     except yaml.YAMLError as exc:
         raise ScenarioValidationError(f"invalid YAML: {exc}") from exc
+    except RecursionError as exc:
+        raise ScenarioValidationError("invalid YAML: nesting is too deep") from exc
 
     return validate_scenario_data(data)
 
