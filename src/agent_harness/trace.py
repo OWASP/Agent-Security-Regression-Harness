@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,43 @@ from typing import Any
 
 class TraceValidationError(ValueError):
     """Raised when a trace file is invalid"""
+
+
+TRACE_FIELDS = ("messages", "tool_calls", "events")
+
+
+def _normalize_field_name(name: str) -> str:
+    """Fold case, separators and a plural ``s`` so near-miss spellings compare equal."""
+    folded = re.sub(r"[\s_-]+", "", name).lower()
+    return folded[:-1] if folded.endswith("s") else folded
+
+
+_NORMALIZED_TRACE_FIELDS = {
+    _normalize_field_name(name): name for name in TRACE_FIELDS
+}
+
+
+def _reject_unrecognized_trace_shape(data: dict[str, Any]) -> None:
+    """Fail closed on traces that would otherwise silently become empty.
+
+    An object with none of the trace fields, or a misspelled field such as
+    ``toolcalls``, would parse as an empty trace and make every denial
+    assertion pass.
+    """
+    for key in data:
+        if not isinstance(key, str) or key in TRACE_FIELDS:
+            continue
+
+        expected = _NORMALIZED_TRACE_FIELDS.get(_normalize_field_name(key))
+        if expected is not None:
+            raise TraceValidationError(
+                f"unrecognized trace field {key!r}; did you mean {expected!r}?"
+            )
+
+    if not any(field_name in data for field_name in TRACE_FIELDS):
+        raise TraceValidationError(
+            "trace must define at least one of messages, tool_calls, or events"
+        )
 
 
 def _validate_object_items(field_name: str, items: list[Any]) -> None:
@@ -33,6 +71,8 @@ class Trace:
         if not isinstance(data, dict):
             raise TraceValidationError("trace must be a JSON object")
         
+        _reject_unrecognized_trace_shape(data)
+
         messages = data.get("messages", [])
         tool_calls = data.get("tool_calls", [])
         events = data.get("events", [])
