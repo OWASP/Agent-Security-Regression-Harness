@@ -84,7 +84,13 @@ def test_passing_suite_matches_schema(validator):
 
 @pytest.mark.parametrize(
     "error_reason",
-    ["missing_trace", "invalid_scenario", "invalid_trace", "duplicate_scenario_id"],
+    [
+        "missing_trace",
+        "invalid_scenario",
+        "invalid_trace",
+        "duplicate_scenario_id",
+        "reserved_scenario_id",
+    ],
 )
 def test_error_entries_match_schema(validator, error_reason):
     entry = SuiteEntry(

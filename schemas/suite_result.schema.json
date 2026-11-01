@@ -95,7 +95,8 @@
               "missing_trace",
               "invalid_scenario",
               "invalid_trace",
-              "duplicate_scenario_id"
+              "duplicate_scenario_id",
+              "reserved_scenario_id"
             ]
           },
           "evidence": {

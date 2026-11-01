@@ -33,6 +33,9 @@ from agent_harness.trace import Trace, TraceValidationError, load_trace
 if TYPE_CHECKING:
     from agent_harness.mcp_host import MCPHostTarget
 
+# ``summary`` is the aggregate output file written next to per-scenario results.
+RESERVED_SUITE_SCENARIO_IDS = frozenset({"summary"})
+
 
 def dry_run_scenario(scenario: Scenario) -> HarnessResult:
     """Create a dry-run result for a validated scenario.
@@ -268,7 +271,29 @@ def run_suite(
             )
             continue
 
-        if scenario.id in seen_ids:
+        scenario_key = scenario.id.casefold()
+
+        if scenario_key in RESERVED_SUITE_SCENARIO_IDS:
+            entries.append(
+                SuiteEntry(
+                    scenario_path=path_str,
+                    scenario_id=scenario.id,
+                    category=scenario.category,
+                    severity=scenario.severity,
+                    result="error",
+                    error_reason="reserved_scenario_id",
+                    evidence=(
+                        f"scenario id {scenario.id!r} is reserved because "
+                        "'<scenario_id>.json' would collide with the aggregate "
+                        "summary.json output"
+                    ),
+                )
+            )
+            continue
+
+        # Compare case-insensitively: on case-insensitive filesystems ids that
+        # differ only by case map to the same trace and result file.
+        if scenario_key in seen_ids:
             entries.append(
                 SuiteEntry(
                     scenario_path=path_str,
@@ -277,11 +302,11 @@ def run_suite(
                     severity=scenario.severity,
                     result="error",
                     error_reason="duplicate_scenario_id",
-                    evidence=f"scenario id already used by {seen_ids[scenario.id]}",
+                    evidence=f"scenario id already used by {seen_ids[scenario_key]}",
                 )
             )
             continue
-        seen_ids[scenario.id] = path_str
+        seen_ids[scenario_key] = path_str
 
         try:
             trace_path = resolve_within(trace_dir_path, f"{scenario.id}.json")
