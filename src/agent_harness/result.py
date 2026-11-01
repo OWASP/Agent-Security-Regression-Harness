@@ -83,6 +83,7 @@ SuiteErrorReason = Literal[
     "invalid_scenario",
     "invalid_trace",
     "duplicate_scenario_id",
+    "reserved_scenario_id",
 ]
 
 

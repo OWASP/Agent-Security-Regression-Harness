@@ -168,6 +168,9 @@ agent-harness suite scenarios/ \
 
 - `--out-dir` writes one `<scenario_id>.json` per scenario that ran (the same
   shape as `agent-harness run`), plus an aggregate `summary.json`.
+  `--out-dir` must not be the same directory as `--trace-dir`, because
+  `<scenario_id>.json` there would overwrite the input traces; `suite` exits 1
+  with an `invalid:` message instead.
 - The aggregate summary is always printed to stdout. It contains the overall
   `result`, per-status `counts` (`total`, `pass`, `fail`, `error`, `not_run`),
   and one `scenarios` entry per scenario with its id, category, severity, the
@@ -186,7 +189,8 @@ continues:
 | `missing_trace` | No `<scenario_id>.json` under `--trace-dir` |
 | `invalid_trace` | The trace file exists but is malformed JSON |
 | `invalid_scenario` | The scenario YAML failed validation |
-| `duplicate_scenario_id` | Two discovered scenarios share an id |
+| `duplicate_scenario_id` | Two discovered scenarios share an id (compared case-insensitively, since the id names the trace and result file) |
+| `reserved_scenario_id` | The scenario id is `summary`, which would collide with the aggregate `summary.json` in `--out-dir` |
 
 Exit behavior composes with CI the same way as `run`:
 

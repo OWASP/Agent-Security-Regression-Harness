@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`suite` output collisions** — a scenario with id `summary` is now reported as a
+  `reserved_scenario_id` error instead of having its result overwritten by the
+  aggregate `summary.json`; scenario ids that differ only by case are treated as
+  duplicates (they share a trace and result file on case-insensitive filesystems);
+  and `--out-dir` equal to `--trace-dir` is rejected so results can no longer
+  overwrite the input traces. `schemas/suite_result.schema.json` gains the
+  `reserved_scenario_id` error reason (#197).
+
 ## [0.2.0] — 2026-07-27
 
 Hardening and CI ergonomics. This release makes the harness comfortable to run

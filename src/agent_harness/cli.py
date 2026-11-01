@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import glob
+import os
 import re
 import sys
 from pathlib import Path
@@ -50,6 +51,16 @@ def parse_target_headers(raw_headers: list[str] | None) -> dict[str, str]:
         parsed[name] = value
 
     return parsed
+
+
+def _same_directory(first: Path, second: Path) -> bool:
+    """Return whether two paths refer to the same directory (symlinks included)."""
+    if first.exists() and second.exists():
+        try:
+            return os.path.samefile(first, second)
+        except OSError:
+            pass
+    return first.resolve() == second.resolve()
 
 
 def _discover_scenario_files(patterns: list[str]) -> list[Path]:
@@ -311,6 +322,14 @@ def main() -> int:
         if not trace_dir.is_dir():
             print(
                 f"invalid: trace directory does not exist: {trace_dir}",
+                file=sys.stderr,
+            )
+            return 1
+
+        if args.out_dir and _same_directory(Path(args.out_dir), trace_dir):
+            print(
+                "invalid: --out-dir must not be the same directory as --trace-dir "
+                "(results would overwrite the input traces)",
                 file=sys.stderr,
             )
             return 1
