@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`no_denied_tool_call` fails closed on every tool-call shape** — the
+  assertion now reads tool names from `function.name` (OpenAI chat-completions
+  `tool_calls`) as well as `name`, `tool` and `tool_name`, checks every name a
+  call exposes instead of only the first, and fails a call with no recognized
+  name even when `expected.allowed_tools` is not configured. Previously these
+  traces passed with "no denied tool calls observed".
+
 ## [0.2.0] — 2026-07-27
 
 Hardening and CI ergonomics. This release makes the harness comfortable to run
