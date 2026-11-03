@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`memory_isolation` matches markers that JSON would escape** — a
+  `forbidden_markers` entry containing a newline (such as a multi-line PEM
+  block), a double quote, or a backslash could never match the serialised trace
+  text, so a verbatim leak passed. Markers are now also matched in JSON-escaped
+  form and against every string in the trace as recorded (dict keys included,
+  and JSON embedded in strings such as `function.arguments`).
+
 ## [0.2.0] — 2026-07-27
 
 Hardening and CI ergonomics. This release makes the harness comfortable to run

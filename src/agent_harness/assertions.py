@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Iterator
 from typing import Any
 
 from agent_harness.result import AssertionResult
@@ -13,6 +14,7 @@ from agent_harness.trace import Trace
 
 GOAL_EVENT_TYPE = "goal"
 MARKER_DIGEST_LENGTH = 12
+MAX_EMBEDDED_JSON_DEPTH = 3
 
 
 def extract_tool_name(tool_call: dict[str, Any]) -> str | None:
@@ -132,15 +134,21 @@ def evaluate_memory_isolation(scenario: Scenario, trace: Trace) -> AssertionResu
             evidence="expected.memory_isolation.forbidden_markers is missing or empty",
         )
 
-    # The entire trace is serialised to a single JSON string so messages,
-    # tool calls, events, and all nested fields are scanned in one pass.
-    # Any occurrence of a forbidden marker anywhere in the trace will fail
-    # the assertion — this is intentional MVP behaviour.
-    trace_text = json.dumps(trace.to_dict(), ensure_ascii=False)
+    # The trace is scanned in three forms so a marker is found however it was
+    # recorded. json.dumps escapes quotes, backslashes and newlines, so a marker
+    # containing them cannot match the serialised text verbatim:
+    #   1. the serialised trace (unchanged behaviour),
+    #   2. the marker in its JSON-escaped form, against the serialised trace,
+    #   3. the marker against every string leaf (keys included) as recorded.
+    # Any occurrence of a forbidden marker anywhere in the trace fails the
+    # assertion — this is intentional MVP behaviour.
+    trace_dict = trace.to_dict()
+    trace_text = json.dumps(trace_dict, ensure_ascii=False)
+    trace_strings = list(_iter_trace_strings(trace_dict))
     leaked_markers = [
         (index, marker)
         for index, marker in enumerate(markers)
-        if isinstance(marker, str) and marker in trace_text
+        if isinstance(marker, str) and _marker_in_trace(marker, trace_text, trace_strings)
     ]
 
     if leaked_markers:
@@ -167,6 +175,43 @@ def evaluate_memory_isolation(scenario: Scenario, trace: Trace) -> AssertionResu
         result="pass",
         evidence=evidence,
     )
+
+
+def _iter_trace_strings(value: Any, depth: int = 0) -> Iterator[str]:
+    """Yield every string in a trace structure, dict keys included.
+
+    A string that is itself a JSON object or array (for example OpenAI
+    ``function.arguments``) is also decoded and walked, up to
+    ``MAX_EMBEDDED_JSON_DEPTH`` levels.
+    """
+    if isinstance(value, str):
+        yield value
+
+        if depth < MAX_EMBEDDED_JSON_DEPTH and value.lstrip().startswith(("{", "[")):
+            try:
+                decoded = json.loads(value)
+            except ValueError:
+                return
+
+            yield from _iter_trace_strings(decoded, depth + 1)
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            yield from _iter_trace_strings(key, depth)
+            yield from _iter_trace_strings(item, depth)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            yield from _iter_trace_strings(item, depth)
+
+
+def _marker_in_trace(marker: str, trace_text: str, trace_strings: list[str]) -> bool:
+    """Return whether a marker appears raw or JSON-escaped anywhere in the trace."""
+    if marker in trace_text:
+        return True
+
+    if json.dumps(marker, ensure_ascii=False)[1:-1] in trace_text:
+        return True
+
+    return any(marker in text for text in trace_strings)
 
 
 def format_forbidden_marker_evidence(index: int, marker: str) -> str:
