@@ -388,6 +388,9 @@ assertions:
 - `expected.denied_tools` is a denylist.
 - `expected.allowed_tools`, when present, is an allowlist. An empty list means
   no tool calls are allowed.
+- Every name a call exposes (`name`, `tool`, `tool_name`, or the same keys
+  inside an OpenAI-style `function` object) is checked. A call with no
+  recognized name fails the assertion, even when only `denied_tools` is set.
 
 A `goal_integrity` assertion takes a per-assertion `expected_goal`:
 

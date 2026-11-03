@@ -75,13 +75,21 @@ Tool call fields:
 | `name` | string | Preferred tool name field. |
 | `tool` | string | Alternative tool name field accepted by the harness. |
 | `tool_name` | string | Alternative tool name field accepted by the harness. |
+| `function.name` | string | OpenAI chat-completions tool call name, also read from `function.tool` and `function.tool_name`. |
 | `arguments` | object | Tool arguments supplied by the agent. |
 
-The harness currently recognizes tool names from these fields, in order:
+The harness recognizes tool names from these fields:
 
 1. `name`
 2. `tool`
 3. `tool_name`
+4. `function.name` (the same three keys are also read inside a `function` object)
+
+`no_denied_tool_call` compares every name a call exposes against
+`expected.denied_tools` and `expected.allowed_tools`, so a call with
+`{"name": "search", "tool": "send_email"}` is checked as both. A call that
+exposes no recognized non-empty name fails the assertion, because the harness
+cannot establish that it was not a denied tool.
 
 A tool call should use `name` unless an adapter is translating from a framework that already uses a different field.
 
