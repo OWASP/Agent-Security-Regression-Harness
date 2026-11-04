@@ -1,0 +1,37 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "Look up the account status."
+    }
+  ],
+  "tool_calls": [
+    {
+      "name": "mcp/lookup_fixture/lookup_status",
+      "arguments": {
+        "account_id": "acct-1"
+      }
+    }
+  ],
+  "events": [
+    {
+      "type": "mcp_tools_discovered",
+      "server_id": "lookup_fixture",
+      "tools": [
+        {
+          "name": "lookup_status",
+          "description": "Read account status.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "account_id": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      ]
+    }
+  ]
+}

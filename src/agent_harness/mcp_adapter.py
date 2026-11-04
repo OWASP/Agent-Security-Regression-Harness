@@ -7,6 +7,7 @@ MCP tool calls into the harness Trace format.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Callable
 from copy import deepcopy
@@ -29,6 +30,7 @@ MCP_EVENT_TYPES = frozenset(
         "mcp_connection_initialized",
         "mcp_capabilities_negotiated",
         "mcp_tools_discovered",
+        "mcp_tool_definition_drift",
         "mcp_resource_read",
         "mcp_prompt_get",
         "mcp_tool_result",
@@ -43,6 +45,123 @@ MCP_EVENT_DEFAULT_METHODS = {
     "mcp_tool_result": MCP_TOOLS_CALL_METHOD,
 }
 MCP_SERVER_SCOPED_EVENT_TYPES = MCP_EVENT_TYPES
+
+
+def mcp_tool_definition_payload(tool: dict[str, Any]) -> dict[str, Any]:
+    """Return the canonical name, description, and input schema of a tool.
+
+    ``inputSchema`` wins over the ``input_schema`` alias. Missing description
+    or schema values are normalized so two equivalent definitions share a
+    digest. Extra tool fields are ignored; a rug-pull that only rewrites
+    title or output schema is outside this pin.
+    """
+    raw_name = tool.get("name", "")
+    name = raw_name.strip() if isinstance(raw_name, str) else ""
+
+    description = tool.get("description", "")
+    if description is None:
+        description = ""
+
+    if "inputSchema" in tool:
+        input_schema = tool.get("inputSchema")
+    elif "input_schema" in tool:
+        input_schema = tool.get("input_schema")
+    else:
+        input_schema = {}
+    if input_schema is None:
+        input_schema = {}
+
+    return {
+        "name": name,
+        "description": description,
+        "inputSchema": input_schema,
+    }
+
+
+def mcp_tool_definition_digest(tool: dict[str, Any]) -> str:
+    """Return a deterministic sha256 digest of a pinned tool definition."""
+    encoded = json.dumps(
+        mcp_tool_definition_payload(tool),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        default=str,
+    )
+    digest = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+    return f"sha256:{digest}"
+
+
+def mcp_tool_definition_changes(
+    pinned: dict[str, Any],
+    observed: dict[str, Any],
+) -> list[str]:
+    """Return which pinned fields differ between two tool definitions."""
+    pinned_payload = mcp_tool_definition_payload(pinned)
+    observed_payload = mcp_tool_definition_payload(observed)
+    changed: list[str] = []
+
+    if pinned_payload["description"] != observed_payload["description"]:
+        changed.append("description")
+    if pinned_payload["inputSchema"] != observed_payload["inputSchema"]:
+        changed.append("inputSchema")
+
+    return changed
+
+
+def pin_mcp_tool_definitions(
+    tools: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Pin one canonical payload per non-empty tool name."""
+    pinned: dict[str, dict[str, Any]] = {}
+
+    for tool in tools:
+        if not isinstance(tool, dict):
+            continue
+        payload = mcp_tool_definition_payload(tool)
+        if payload["name"]:
+            pinned[payload["name"]] = payload
+
+    return pinned
+
+
+def find_mcp_tool_definition_drift(
+    pinned: dict[str, dict[str, Any]],
+    observed_tools: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Return drift records for pinned tools whose definition changed or vanished."""
+    observed = pin_mcp_tool_definitions(observed_tools)
+    drifts: list[dict[str, Any]] = []
+
+    for name in sorted(pinned):
+        pinned_payload = pinned[name]
+        pinned_digest = mcp_tool_definition_digest(pinned_payload)
+        current = observed.get(name)
+        if current is None:
+            drifts.append(
+                {
+                    "tool_name": name,
+                    "pinned_digest": pinned_digest,
+                    "observed_digest": "",
+                    "changed_fields": ["missing"],
+                }
+            )
+            continue
+
+        observed_digest = mcp_tool_definition_digest(current)
+        if observed_digest == pinned_digest:
+            continue
+
+        changed = mcp_tool_definition_changes(pinned_payload, current)
+        drifts.append(
+            {
+                "tool_name": name,
+                "pinned_digest": pinned_digest,
+                "observed_digest": observed_digest,
+                "changed_fields": changed or ["definition"],
+            }
+        )
+
+    return drifts
 
 
 def build_mcp_input(scenario: Scenario) -> dict[str, Any]:

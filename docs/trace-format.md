@@ -121,7 +121,16 @@ plain tool call in `events`. The initial normalized event set is:
 
 The adapter may also emit connection and capability events such as
 `mcp_connection_initialized`, `mcp_capabilities_negotiated`,
-`mcp_tools_discovered`, `mcp_client_request`, and `mcp_connection_closed`.
+`mcp_tools_discovered`, `mcp_tool_definition_drift`, `mcp_client_request`,
+and `mcp_connection_closed`.
+
+`mcp_tools_discovered` should keep each tool's `description` and
+`inputSchema`. Those fields are the pin for `mcp_tool_definition_integrity`.
+A later discovery that changes either field is drift unless the trace
+already contains `mcp_tool_definition_approved` for the new digest
+(`server_id`, `tool_name`, `definition_digest`, `decision: approved`).
+`mcp_tool_definition_drift` records that the host observed an unapproved
+change before `tools/call`.
 
 MCP events should preserve the configured server identity and trust metadata.
 For tool results, `name` should use the same canonical
