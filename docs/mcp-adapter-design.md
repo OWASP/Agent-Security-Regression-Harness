@@ -200,7 +200,8 @@ initial event types:
 |---|---|
 | `mcp_connection_initialized` | A server connection completed lifecycle initialization. |
 | `mcp_capabilities_negotiated` | Client and server capabilities selected for the session. |
-| `mcp_tools_discovered` | The adapter observed tools from `tools/list`. |
+| `mcp_tools_discovered` | The adapter observed tools from `tools/list`. The host pins each tool's description and input schema from the initialization list. |
+| `mcp_tool_definition_drift` | A later `tools/list` changed a pinned description or input schema, or the pinned tool disappeared. The host refuses `tools/call` when this happens. |
 | `mcp_resource_read` | The agent or host read a server resource. |
 | `mcp_prompt_get` | The agent or host retrieved a server prompt. |
 | `mcp_tool_result` | A server returned a tool result or tool execution error. |

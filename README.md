@@ -51,6 +51,7 @@ Currently implemented assertions:
 - `goal_integrity` — fail if the agent drifts from the expected goal event
 - `memory_isolation` — fail if any configured `forbidden_markers` appear anywhere in the trace (with redacted failure evidence)
 - `no_external_recipient` — fail on outbound actions to recipients or domains outside the allowlist
+- `mcp_tool_definition_integrity` — fail if a pinned MCP tool `description` or `inputSchema` changes without re-approval. See [docs/assertions/mcp-tool-definition-integrity.md](docs/assertions/mcp-tool-definition-integrity.md).
 
 To test whether specific known secrets leak (API keys, tokens, PII you control), configure them as `forbidden_markers` under `expected.memory_isolation` — `memory_isolation` enforces this and reports leaks without re-exposing the marker value. See [docs/assertions/memory-isolation.md](docs/assertions/memory-isolation.md).
 

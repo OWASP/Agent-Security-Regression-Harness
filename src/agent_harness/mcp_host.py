@@ -16,13 +16,17 @@ from collections.abc import Awaitable, Callable
 from contextlib import AsyncExitStack
 from copy import deepcopy
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from typing import Any
 
 from agent_harness.adapters import AdapterError
 from agent_harness.mcp_adapter import (
     build_mcp_input,
     canonical_mcp_tool_name,
+    find_mcp_tool_definition_drift,
+    mcp_tool_definition_digest,
     mcp_workflow_result_to_trace,
+    pin_mcp_tool_definitions,
 )
 from agent_harness.mcp_runtime import (
     MCPRuntimeConfig,
@@ -78,6 +82,7 @@ class _MCPConnection:
     session: Any
     metadata: dict[str, Any]
     tool_names: frozenset[str]
+    tool_definitions: dict[str, dict[str, Any]] = dataclass_field(default_factory=dict)
 
 
 class MCPHostContext:
@@ -163,6 +168,8 @@ class MCPHostContext:
                 f"MCP tool is not advertised by server {normalized_server_id}: "
                 f"{normalized_tool_name}"
             )
+
+        await _reject_pinned_definition_drift(connection)
 
         canonical_tool_name = canonical_mcp_tool_name(
             normalized_server_id,
@@ -383,12 +390,22 @@ async def _connect_stdio_server(
 
     metadata = _server_metadata(server_config, initialize_result)
     tool_names = _tool_names_from_list_tools_result(tools_result)
+    tool_definitions = pin_mcp_tool_definitions(_raw_tool_dicts(tools_result))
     events = [
         _connection_initialized_event(server_config, initialize_result),
         _tools_discovered_event(server_config, tools_result),
     ]
 
-    return _MCPConnection(server_config, session, metadata, tool_names), events
+    return (
+        _MCPConnection(
+            server_config,
+            session,
+            metadata,
+            tool_names,
+            tool_definitions,
+        ),
+        events,
+    )
 
 
 def _stdio_server_parameters(server_config: MCPServerConfig, sdk: _MCPSDK) -> Any:
@@ -698,6 +715,8 @@ def _tools_discovered_event(
                 for tool in raw_tools
                 if isinstance(tool, dict) and "name" in tool
             ]
+            for tool in tools:
+                tool["definition_digest"] = mcp_tool_definition_digest(tool)
 
     event: dict[str, Any] = {
         "type": "mcp_tools_discovered",
@@ -740,6 +759,70 @@ def _tool_summary(tool: dict[str, Any]) -> dict[str, Any]:
             summary[field] = deepcopy(value)
 
     return summary
+
+
+def _raw_tool_dicts(tools_result: Any) -> list[dict[str, Any]]:
+    """Return tool objects from a tools/list result without trace truncation."""
+    raw_tools = _first_present_from_object(tools_result, ("tools",), default=None)
+    if raw_tools is None:
+        model_dump = getattr(tools_result, "model_dump", None)
+        if callable(model_dump):
+            dumped = model_dump()
+            if isinstance(dumped, dict):
+                raw_tools = dumped.get("tools", [])
+    if not isinstance(raw_tools, list | tuple):
+        return []
+
+    tools: list[dict[str, Any]] = []
+    for tool in raw_tools:
+        if isinstance(tool, dict):
+            tools.append(tool)
+            continue
+
+        model_dump = getattr(tool, "model_dump", None)
+        if not callable(model_dump):
+            continue
+        dumped = model_dump()
+        if isinstance(dumped, dict):
+            tools.append(dumped)
+
+    return tools
+
+
+async def _reject_pinned_definition_drift(connection: _MCPConnection) -> None:
+    """Fail closed when a pinned tool definition changed after initialization.
+
+    The initialization ``tools/list`` is the approved catalog. A server can
+    rewrite ``description`` or ``inputSchema`` after that snapshot (a rug-pull)
+    and the next ``tools/call`` would otherwise use the mutated contract. Re-list
+    before the call and refuse if any pinned definition differs.
+    """
+    try:
+        tools_result = await asyncio.wait_for(
+            connection.session.list_tools(),
+            timeout=connection.config.timeout_seconds,
+        )
+    except Exception as exc:
+        raise AdapterError(
+            "Could not re-list MCP tools before calling a pinned tool on "
+            f"{connection.config.id}: {_safe_error_message(exc)}"
+        ) from exc
+
+    drifts = find_mcp_tool_definition_drift(
+        connection.tool_definitions,
+        _raw_tool_dicts(tools_result),
+    )
+    if not drifts:
+        return
+
+    details = ", ".join(
+        f"{item['tool_name']} ({', '.join(item['changed_fields'])})"
+        for item in drifts
+    )
+    raise AdapterError(
+        "MCP tool definition drift on server "
+        f"{connection.config.id} before tools/call: {details}"
+    )
 
 
 def _tool_names_from_list_tools_result(tools_result: Any) -> frozenset[str]:

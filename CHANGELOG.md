@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `mcp_tool_definition_integrity` assertion. It fails when a later
+  `mcp_tools_discovered` event changes a pinned tool's `description` or
+  `inputSchema` unless an earlier `mcp_tool_definition_approved` event
+  names that server, tool, and the new definition digest.
+- `scenarios/mcp_trust_boundary/tool_definition_rug_pull_001.yaml` covers
+  that mid-session definition drift.
+
+### Security
+
+- The MCP host pins tool-definition digests at `tools/list` during
+  initialization and re-lists before each `tools/call`. A changed
+  `description` or `inputSchema`, a missing pinned tool, or a failed
+  re-list refuses the call instead of invoking the mutated contract.
+
 ## [0.2.0] — 2026-07-27
 
 Hardening and CI ergonomics. This release makes the harness comfortable to run

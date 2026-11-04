@@ -284,6 +284,23 @@ def test_normalize_mcp_tool_result_rejects_conflicting_canonical_server_id():
         )
 
 
+def test_normalize_mcp_tool_definition_drift_event_preserves_changed_fields():
+    event = normalize_mcp_event(
+        {
+            "type": "mcp_tool_definition_drift",
+            "server_id": "lookup_fixture",
+            "tool_name": "lookup_status",
+            "changed_fields": ["description", "inputSchema"],
+            "pinned_digest": "sha256:" + ("ab" * 32),
+            "observed_digest": "sha256:" + ("cd" * 32),
+        }
+    )
+
+    assert event["type"] == "mcp_tool_definition_drift"
+    assert event["server_id"] == "lookup_fixture"
+    assert event["changed_fields"] == ["description", "inputSchema"]
+
+
 def test_normalize_mcp_policy_decision_event_requires_decision():
     event = normalize_mcp_event(
         {
