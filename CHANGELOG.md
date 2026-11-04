@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `goal_integrity` fails when any recorded goal event differs from
+  `expected_goal`. A trace that starts on the expected goal and later
+  records a hijacked or contradictory goal no longer passes because the
+  expected id appeared somewhere in the trace.
+
 ## [0.2.0] — 2026-07-27
 
 Hardening and CI ergonomics. This release makes the harness comfortable to run
