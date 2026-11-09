@@ -10,15 +10,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Recipient-allowlist shape-evasion scenarios (`no_external_recipient`)** — five
-  expected-fail negative scenarios under `scenarios/sensitive_data_disclosure/`
-  that send to an external recipient in a shape the current recipient extractor
-  does not read: a recipient under the `emailAddress` key, under the `mail` key,
-  a Microsoft Graph `toRecipients` envelope, a SendGrid `personalizations`
-  envelope, and a custom `send_to` list of recipient objects. Each has a passing
-  fixture (agent refuses) and an evading violation trace wired into the
-  `regression_demo/` gate. The violation traces score `pass` on `main` today and
-  turn `fail` once recipient extraction is made shape-independent. Documents the
-  gap analyzed in #167; complements the fix in #165.
+  negative scenarios under `scenarios/sensitive_data_disclosure/` that send to an
+  external recipient in a shape the recipient extractor does not read: a recipient
+  under the `emailAddress` key, under the `mail` key, a Microsoft Graph
+  `message.toRecipients` envelope, a SendGrid `personalizations[].to[]` envelope,
+  and a custom `send_to` list of recipient objects. Each has a passing fixture
+  under `examples/traces/sensitive_data_disclosure/`, collected by
+  `tests/test_scenario_pass_fixtures.py`, and an evading violation trace that
+  asserts the correct `fail` outcome under `xfail(strict=True)`, so a fix cannot
+  land without the strict `XPASS` turning the suite red. Documents the gap
+  tracked in #167.
 
 ## [0.2.0] — 2026-07-27
 
