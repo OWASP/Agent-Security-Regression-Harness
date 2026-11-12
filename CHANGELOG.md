@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`approval_required` single-use binding** — one trusted approval event no longer
+  covers every later invocation of the action. Each call consumes one approval.
+  An approval that records `arguments` or a call id can cover only the matching
+  call, so an argument-swap replay fails.
+
 ## [0.2.0] — 2026-07-27
 
 Hardening and CI ergonomics. This release makes the harness comfortable to run
