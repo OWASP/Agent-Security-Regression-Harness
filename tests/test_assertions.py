@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 from typing import Any
 
+import pytest
+
 from agent_harness.assertions import (
     evaluate_approval_required,
     evaluate_assertions,
@@ -942,3 +944,118 @@ def test_approval_required_does_not_let_untrusted_approval_fill_the_quota():
     result = evaluate_approval_required(scenario, trace, assertion)
 
     assert result.result == "fail"
+
+
+@pytest.mark.parametrize(
+    ("call_key", "approval_key"),
+    [
+        ("call_id", "call_id"),
+        ("tool_call_id", "call_id"),
+        ("call_id", "tool_call_id"),
+        ("tool_call_id", "tool_call_id"),
+    ],
+)
+@pytest.mark.parametrize(
+    ("approved_id", "expected"),
+    [("  call-1  ", "pass"), ("call-2", "fail")],
+)
+def test_approval_required_call_id_binding_normalizes_supported_representations(
+    call_key: str, approval_key: str, approved_id: str, expected: str
+):
+    action = "transfer_funds"
+    scenario, assertion = _trusted_approval_scenario(action)
+    arguments = {"to": "alice", "amount": 10}
+    trace = Trace(
+        tool_calls=[{"name": action, call_key: "call-1", "arguments": arguments}],
+        events=[_approval(action, **{approval_key: approved_id, "arguments": arguments})],
+    )
+
+    result = evaluate_approval_required(scenario, trace, assertion)
+
+    assert result.result == expected
+    if expected == "fail":
+        assert "1 uncovered" in (result.evidence or "")
+
+
+@pytest.mark.parametrize(
+    ("second_approved_id", "expected"),
+    [("call-2", "pass"), ("call-1", "fail")],
+)
+def test_approval_required_distinct_calls_need_distinct_bound_approvals(
+    second_approved_id: str, expected: str
+):
+    action = "transfer_funds"
+    scenario, assertion = _trusted_approval_scenario(action)
+    arguments = {"to": "alice", "amount": 10}
+    trace = Trace(
+        tool_calls=[
+            {"name": action, "call_id": "call-1", "arguments": arguments},
+            {"name": action, "call_id": "call-2", "arguments": arguments},
+        ],
+        events=[
+            _approval(action, call_id="call-1", arguments=arguments),
+            _approval(action, call_id=second_approved_id, arguments=arguments),
+        ],
+    )
+
+    result = evaluate_approval_required(scenario, trace, assertion)
+
+    assert result.result == expected
+    if expected == "fail":
+        assert "1 uncovered" in (result.evidence or "")
+
+
+@pytest.mark.parametrize(
+    ("approved_action", "expected"),
+    [("transfer_funds", "pass"), ("read_balance", "fail")],
+)
+def test_approval_required_unrelated_tool_does_not_consume_or_supply_approval(
+    approved_action: str, expected: str
+):
+    action = "transfer_funds"
+    scenario, assertion = _trusted_approval_scenario(action)
+    trace = Trace(
+        tool_calls=[
+            {"name": "read_balance", "call_id": "read-1"},
+            {"name": action, "call_id": "transfer-1"},
+        ],
+        events=[_approval(approved_action)],
+    )
+
+    result = evaluate_approval_required(scenario, trace, assertion)
+
+    assert result.result == expected
+
+
+def test_approval_required_unexercised_action_stays_not_run_despite_approval():
+    action = "transfer_funds"
+    scenario, assertion = _trusted_approval_scenario(action)
+    trace = Trace(
+        tool_calls=[{"name": "read_balance"}],
+        events=[_approval(action)],
+    )
+
+    result = evaluate_approval_required(scenario, trace, assertion)
+
+    assert result.result == "not_run"
+    assert "was not observed" in (result.evidence or "")
+
+
+@pytest.mark.parametrize("generic_first", [True, False])
+def test_approval_required_specific_and_generic_grants_cover_distinct_calls(
+    generic_first: bool,
+):
+    action = "transfer_funds"
+    scenario, assertion = _trusted_approval_scenario(action)
+    approvals = [_approval(action), _approval(action, call_id="call-1")]
+    trace = Trace(
+        tool_calls=[
+            {"name": action, "call_id": "call-1"},
+            {"name": action, "call_id": "call-2"},
+        ],
+        events=approvals if generic_first else list(reversed(approvals)),
+    )
+
+    result = evaluate_approval_required(scenario, trace, assertion)
+
+    assert result.result == "pass"
