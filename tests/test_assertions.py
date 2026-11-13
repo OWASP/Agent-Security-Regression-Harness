@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 from typing import Any
 
+import pytest
+
 from agent_harness.assertions import (
     evaluate_approval_required,
     evaluate_assertions,
@@ -207,6 +209,165 @@ def test_memory_isolation_includes_scope_in_pass_evidence():
 
     assert result.result == "pass"
     assert '"user_id": "test-user"' in (result.evidence or "")
+
+
+def test_memory_isolation_rejects_dict_scope_mismatches_in_nested_trace_data():
+    assertion = {"type": "memory_isolation"}
+    expected = {
+        "memory_isolation": {
+            "forbidden_markers": ["secret"],
+            "scope": {
+                "user_id": "bob",
+                "session_id": "session_b",
+                "tenant_id": "tenant_2",
+            },
+        }
+    }
+    scenario = make_scenario([assertion], expected)
+    trace = Trace(
+        events=[{"type": "memory_read", "metadata": {"user_id": "alice"}}],
+        messages=[{"metadata": {"session_id": "session_a"}}],
+        tool_calls=[{"arguments": {"tenant_id": "tenant_1"}}],
+    )
+
+    result = evaluate_memory_isolation(scenario, trace)
+
+    assert result.result == "fail"
+    evidence = result.evidence or ""
+    assert '"user_id" expected "bob", observed "alice"' in evidence
+    assert '"session_id" expected "session_b", observed "session_a"' in evidence
+    assert '"tenant_id" expected "tenant_2", observed "tenant_1"' in evidence
+
+
+def test_memory_isolation_enforces_custom_dict_scope_keys():
+    assertion = {"type": "memory_isolation"}
+    expected = {
+        "memory_isolation": {
+            "forbidden_markers": ["secret"],
+            "scope": {"account_id": "account_b"},
+        }
+    }
+    scenario = make_scenario([assertion], expected)
+    trace = Trace(tool_calls=[{"arguments": {"account_id": "account_a"}}])
+
+    result = evaluate_memory_isolation(scenario, trace)
+
+    assert result.result == "fail"
+    assert (
+        '"account_id" expected "account_b", observed "account_a"'
+        in (result.evidence or "")
+    )
+
+
+@pytest.mark.parametrize(
+    ("scope", "scope_key"),
+    [
+        ("user", "user_id"),
+        ("session", "session_id"),
+        ("tenant", "tenant_id"),
+    ],
+)
+def test_memory_isolation_rejects_mixed_named_scope(
+    scope: str, scope_key: str
+):
+    assertion = {"type": "memory_isolation"}
+    expected = {
+        "memory_isolation": {
+            "forbidden_markers": ["secret"],
+            "scope": scope,
+        }
+    }
+    scenario = make_scenario(
+        [assertion], expected, {scope_key: "expected-value"}
+    )
+    trace = Trace(
+        events=[{"type": "memory_read", "metadata": {scope_key: "other-value"}}]
+    )
+
+    result = evaluate_memory_isolation(scenario, trace)
+
+    assert result.result == "fail"
+    evidence = result.evidence or ""
+    assert scope_key in evidence
+    assert '"expected-value"' in evidence
+    assert '"other-value"' in evidence
+
+
+@pytest.mark.parametrize(
+    ("scope", "scope_key"),
+    [
+        ("user", "user_id"),
+        ("session", "session_id"),
+        ("tenant", "tenant_id"),
+    ],
+)
+def test_memory_isolation_rejects_scope_mixed_across_trace_records(
+    scope: str, scope_key: str
+):
+    assertion = {"type": "memory_isolation"}
+    expected = {
+        "memory_isolation": {
+            "forbidden_markers": ["secret"],
+            "scope": scope,
+        }
+    }
+    scenario = make_scenario([assertion], expected)
+    trace = Trace(
+        events=[{"type": "memory_read", scope_key: "first-value"}],
+        messages=[{"metadata": {scope_key: "second-value"}}],
+    )
+
+    result = evaluate_memory_isolation(scenario, trace)
+
+    assert result.result == "fail"
+    evidence = result.evidence or ""
+    assert '"first-value"' in evidence
+    assert '"second-value"' in evidence
+
+
+@pytest.mark.parametrize(
+    ("scope", "scope_key"),
+    [
+        ("user", "user_id"),
+        ("session", "session_id"),
+        ("tenant", "tenant_id"),
+    ],
+)
+def test_memory_isolation_accepts_one_value_for_named_scope(
+    scope: str, scope_key: str
+):
+    assertion = {"type": "memory_isolation"}
+    expected = {
+        "memory_isolation": {
+            "forbidden_markers": ["secret"],
+            "scope": scope,
+        }
+    }
+    scenario = make_scenario([assertion], expected, {scope_key: "same-value"})
+    trace = Trace(
+        events=[{"type": "memory_read", "metadata": {scope_key: "same-value"}}]
+    )
+
+    result = evaluate_memory_isolation(scenario, trace)
+
+    assert result.result == "pass"
+
+
+@pytest.mark.parametrize("scope", ["planet", "", 123, ["user"]])
+def test_memory_isolation_rejects_invalid_scope(scope: Any):
+    assertion = {"type": "memory_isolation"}
+    expected = {
+        "memory_isolation": {
+            "forbidden_markers": ["secret"],
+            "scope": scope,
+        }
+    }
+    scenario = make_scenario([assertion], expected)
+
+    result = evaluate_memory_isolation(scenario, Trace())
+
+    assert result.result == "fail"
+    assert "invalid memory_isolation scope" in (result.evidence or "")
 
 
 def test_memory_isolation_skips_non_string_markers():
