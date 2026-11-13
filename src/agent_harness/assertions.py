@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Iterator
 from typing import Any
 
 from agent_harness.result import AssertionResult
@@ -13,6 +14,11 @@ from agent_harness.trace import Trace
 
 GOAL_EVENT_TYPE = "goal"
 MARKER_DIGEST_LENGTH = 12
+NAMED_MEMORY_SCOPES = {
+    "user": "user_id",
+    "session": "session_id",
+    "tenant": "tenant_id",
+}
 
 
 def extract_tool_name(tool_call: dict[str, Any]) -> str | None:
@@ -119,12 +125,18 @@ def evaluate_assertions(scenario: Scenario, trace: Trace) -> list[AssertionResul
 
 
 def evaluate_memory_isolation(scenario: Scenario, trace: Trace) -> AssertionResult:
-    """Fail if the trace contains any forbidden markers."""
-    markers = (
-        scenario.raw.get("expected", {})
-        .get("memory_isolation", {})
-        .get("forbidden_markers", [])
-    )
+    """Fail if the trace crosses a scope boundary or contains forbidden markers."""
+    memory_config = scenario.raw.get("expected", {}).get("memory_isolation", {})
+    scope = memory_config.get("scope")
+    scope_evidence = _evaluate_memory_scope(scenario, trace, scope)
+    if scope_evidence is not None:
+        return AssertionResult(
+            id="memory_isolation",
+            result="fail",
+            evidence=scope_evidence,
+        )
+
+    markers = memory_config.get("forbidden_markers", [])
     if not markers:
         return AssertionResult(
             id="memory_isolation",
@@ -158,7 +170,6 @@ def evaluate_memory_isolation(scenario: Scenario, trace: Trace) -> AssertionResu
         )
 
     evidence = "no forbidden markers found in trace"
-    scope = scenario.raw.get("expected", {}).get("memory_isolation", {}).get("scope")
     if scope:
         evidence += f" (scope: {json.dumps(scope)})"
 
@@ -167,6 +178,88 @@ def evaluate_memory_isolation(scenario: Scenario, trace: Trace) -> AssertionResu
         result="pass",
         evidence=evidence,
     )
+
+
+def _evaluate_memory_scope(
+    scenario: Scenario,
+    trace: Trace,
+    scope: Any,
+) -> str | None:
+    """Return failure evidence when memory scope configuration is violated."""
+    if scope is None:
+        return None
+
+    if isinstance(scope, str):
+        scope_key = NAMED_MEMORY_SCOPES.get(scope)
+        if scope_key is None:
+            return (
+                "invalid memory_isolation scope "
+                f"{_format_scope_value(scope)}; expected \"user\", \"session\", "
+                'or "tenant", or an object of expected scope bindings'
+            )
+
+        observed: dict[str, Any] = {}
+        roots = (scenario.raw.get("input", {}), trace.to_dict())
+        for _, value in _iter_scope_values(roots, {scope_key}):
+            observed.setdefault(_format_scope_value(value), value)
+
+        if len(observed) > 1:
+            values = ", ".join(observed)
+            return (
+                f"memory scope boundary violation: {scope_key} has conflicting "
+                f"values: {values}"
+            )
+
+        return None
+
+    if isinstance(scope, dict):
+        mismatches: list[str] = []
+        seen: set[tuple[str, str, str]] = set()
+        trace_data = trace.to_dict()
+        for key, value in _iter_scope_values(trace_data, set(scope)):
+            expected = scope[key]
+            mismatch = (
+                _format_scope_value(key),
+                _format_scope_value(expected),
+                _format_scope_value(value),
+            )
+            if mismatch in seen or mismatch[1] == mismatch[2]:
+                continue
+            seen.add(mismatch)
+            mismatches.append(
+                f"{mismatch[0]} expected {mismatch[1]}, observed {mismatch[2]}"
+            )
+
+        if mismatches:
+            return "memory scope boundary violation: " + "; ".join(mismatches)
+
+        return None
+
+    return (
+        "invalid memory_isolation scope "
+        f"{_format_scope_value(scope)}; expected \"user\", \"session\", "
+        'or "tenant", or an object of expected scope bindings'
+    )
+
+
+def _iter_scope_values(value: Any, scope_keys: set[Any]) -> Iterator[tuple[Any, Any]]:
+    """Yield scope-key bindings from arbitrarily nested trace data."""
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if key in scope_keys:
+                yield key, child
+            yield from _iter_scope_values(child, scope_keys)
+    elif isinstance(value, (list, tuple)):
+        for child in value:
+            yield from _iter_scope_values(child, scope_keys)
+
+
+def _format_scope_value(value: Any) -> str:
+    """Format a scope identifier deterministically for evidence."""
+    try:
+        return json.dumps(value, ensure_ascii=False, sort_keys=True)
+    except (TypeError, ValueError):
+        return repr(value)
 
 
 def format_forbidden_marker_evidence(index: int, marker: str) -> str:

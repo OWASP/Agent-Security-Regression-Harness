@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`memory_isolation` scope enforcement** — validate explicit scope bindings
+  and cross-user, cross-session, and cross-tenant identifiers throughout trace
+  data; reject unsupported scope values instead of passing them.
+
 ## [0.2.0] — 2026-07-27
 
 Hardening and CI ergonomics. This release makes the harness comfortable to run
